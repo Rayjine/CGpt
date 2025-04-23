@@ -1,0 +1,6 @@
+# Build gene function out of nucleotide sequence
+
+* Step 1 : retrieve peptide sequence from gene seq
+
+* Step 2 : use SANSPANZ to retrieve gene function in GO terms
+Followed [tutorial](http://ekhidna2.biocenter.helsinki.fi/sanspanz/)
