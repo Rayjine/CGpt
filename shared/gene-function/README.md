@@ -12,5 +12,4 @@ uv init
 uv sync
 ```
 
-
-* Run `ppython main.py -i test_data/test_pept.fasta -o test_results -s "Canis lupus familiaris"` as example
+* Run `python main.py -i test_data/test_pept.fasta -o test_results -s "Canis lupus familiaris"` as example
