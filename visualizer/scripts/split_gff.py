@@ -18,7 +18,7 @@ def sanitize_filename(name):
     return name
 
 
-def split_gff_by_chromosome(input_gff_path: Path, output_dir: Path):
+def split_gff_by_chromosome(input_gff_path: Path, output_dir: Path, types=["all"]):
     """
     Splits a GFF3 file into multiple files based on chromosome ID (column 1).
 
@@ -61,7 +61,6 @@ def split_gff_by_chromosome(input_gff_path: Path, output_dir: Path):
                 if not line.strip():
                     continue
 
-                data_line_count += 1
                 try:
                     # Split GFF line (tab-delimited)
                     fields = line.split("\t")
@@ -73,7 +72,11 @@ def split_gff_by_chromosome(input_gff_path: Path, output_dir: Path):
                         continue
 
                     chromosome_id = fields[0].strip()
+                    chromose_type = fields[2].strip()
+                    if "all" not in types and chromose_type not in types:
+                        continue
 
+                    data_line_count += 1
                     # Check if we already have a file open for this chromosome
                     if chromosome_id not in output_files:
                         safe_filename = sanitize_filename(chromosome_id) + ".gff"
@@ -153,6 +156,13 @@ if __name__ == "__main__":
         type=Path,
         help="Path to the output directory. Defaults to a 'chromosomes' subdirectory next to the input file.",
     )
+    parser.add_argument(
+        "-t",
+        "--types",
+        nargs="+",
+        default=["all"],
+        help="Specify the extracted features. Must be a list of feature or 'all'. Default: 'all'",
+    )
     args = parser.parse_args()
 
     output_directory = args.output_dir
@@ -161,4 +171,4 @@ if __name__ == "__main__":
         output_directory.mkdir(parents=True, exist_ok=True)
         print(f"--output-dir not specified, defaulting to: {output_directory}")
 
-    split_gff_by_chromosome(args.input_gff, output_directory)
+    split_gff_by_chromosome(args.input_gff, output_directory, args.types)

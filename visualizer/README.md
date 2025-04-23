@@ -1,11 +1,5 @@
 # Genomics Visualization Web App
 
-
-
-
-
-
-
 ## Overview
 This project is an interactive, web-based 2D genome browser built with **React** and **D3.js**. It enables users to explore chromosome data, gene tracks, and genomic annotations with intuitive navigation and visual overlays. The application is designed for researchers, educators, and anyone interested in genomics data visualization.
 
@@ -38,14 +32,14 @@ This project is an interactive, web-based 2D genome browser built with **React**
    - Run the following commands
    ```bash
    cd visualizer
-   uv run scripts/split_gff.py data/data/GCF_014441545.1/genomic.gff  # this should be fast (< 1 sec)
+   uv run scripts/split_gff.py data/data/GCF_014441545.1/genomic.gff -t genes # this should be fast (< 1 sec)
    uv run scripts/create_chromosome_dbs.py data/data/GCF_014441545.1/chromosomes NC_051805.1.gff  # should take around 1 minute
    # only load the first chromosone in a DB. If you need more, you can pass no file (defaults to all), or more files
    # uv run scripts/create_chromosome_dbs.py data/data/GCF_014441545.1/chromosomes NC_051805.1.gff NC_051806.1.gff NC_051807.1.gff
    ```
 3. **Run the development server** (for the React frontend):
    ```bash
-   cd visualizer  # if you're not already in it
+   cd visualizer/cgpt-visualizer-website  # if you're not already in it
    npm install
    npm start
    ```
