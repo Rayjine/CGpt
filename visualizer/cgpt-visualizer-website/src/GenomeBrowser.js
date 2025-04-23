@@ -51,6 +51,7 @@ function GenomeBrowser() {
   const zoomRef = useRef();
   const [zoomRegion, setZoomRegion] = useState([0, mockChromosome.length]);
   const [hoveredGene, setHoveredGene] = useState(null);
+  const [selectedGene, setSelectedGene] = useState(null);
 
   // --- D3 Zoom Setup: Only once on mount ---
   useEffect(() => {
@@ -144,6 +145,7 @@ function GenomeBrowser() {
       .attr('height', 16)
       .attr('rx', 10)
       .attr('fill', '#cccccc');
+      
     // Genes
     overviewSvg.selectAll('.gene')
       .data(mockChromosome.genes)
@@ -158,15 +160,98 @@ function GenomeBrowser() {
       .attr('rx', 5);
     // Red rectangle for zoom region
     const isFullView = zoomRegion[0] <= 0 + 1 && zoomRegion[1] >= mockChromosome.length - 1;
-    overviewSvg.append('rect')
+    
+    // Draggable zoom rectangle
+    const dragZoomRect = d3.drag()
+      .on('start', function(event) {
+        d3.select(this).attr('cursor', 'grabbing');
+        // Store the initial click offset from the rectangle's left edge
+        const rectX = parseFloat(d3.select(this).attr('x'));
+        d3.select(this).attr('data-offset', event.x - rectX);
+      })
+      .on('drag', function(event) {
+        if (isFullView) return; // Don't drag when showing full view
+        
+        const width = parseFloat(d3.select(this).attr('width'));
+        const offset = parseFloat(d3.select(this).attr('data-offset')) || 0;
+        
+        // Apply the offset to maintain grab position
+        const adjustedX = event.x - offset;
+        
+        const minX = margin.left;
+        const maxX = availableWidth - margin.right - width;
+        
+        // Constrain to chromosome boundaries
+        let newX = Math.max(minX, Math.min(maxX, adjustedX));
+        
+        // Update rectangle position
+        d3.select(this).attr('x', newX);
+        
+        // Calculate new zoom region based on drag position
+        const newStart = xOverview.invert(newX);
+        const newEnd = xOverview.invert(newX + width);
+        
+        // Update zoom region if significantly different (avoid unnecessary updates)
+        if (Math.abs(newStart - zoomRegion[0]) > 1 || Math.abs(newEnd - zoomRegion[1]) > 1) {
+          setZoomRegion([newStart, newEnd]);
+        }
+      })
+      .on('end', function() {
+        d3.select(this).attr('cursor', 'grab');
+      });
+    
+    const zoomRect = overviewSvg.append('rect')
       .attr('class', 'zoom-rect')
       .attr('x', isFullView ? margin.left : xOverview(zoomRegion[0]))
       .attr('y', overviewBarY - 5)
       .attr('width', isFullView ? (availableWidth - margin.left - margin.right) : (xOverview(zoomRegion[1]) - xOverview(zoomRegion[0])))
       .attr('height', 26)
-      .attr('fill', 'none')
+      .attr('fill', 'rgba(255, 0, 0, 0.1)')  // Semi-transparent red fill
       .attr('stroke', 'red')
-      .attr('stroke-width', 2);
+      .attr('stroke-width', 2)
+      .attr('cursor', 'grab')
+      .style('pointer-events', 'all');  // Make sure pointer events work on the entire rectangle
+    
+    // Add drag behavior if not showing full view
+    if (!isFullView) {
+      zoomRect.call(dragZoomRect);
+    }
+
+    // Make genes easier to select in overview
+    overviewSvg.selectAll('.gene-hitbox')
+      .data(mockChromosome.genes)
+      .enter()
+      .append('rect')
+      .attr('class', 'gene-hitbox')
+      .attr('x', d => Math.max(margin.left, xOverview(d.start) - 5))
+      .attr('y', overviewBarY - 4)
+      .attr('width', d => Math.max(10, xOverview(d.end) - xOverview(d.start) + 10))
+      .attr('height', 24)
+      .attr('fill', 'transparent')
+      .attr('cursor', 'pointer')
+      .style('pointer-events', 'all')
+      .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
+        setHoveredGene(d);
+        
+        // Highlight the actual gene
+        overviewSvg.selectAll('.gene')
+          .filter(g => g === d)
+          .attr('stroke', '#000')
+          .attr('stroke-width', 1);
+      })
+      .on('mouseout', function() {
+        setHoveredGene(null);
+        
+        // Remove highlight
+        overviewSvg.selectAll('.gene')
+          .attr('stroke', 'none');
+      })
+      .on('click', function(event, d) {
+        event.stopPropagation();
+        setSelectedGene(d);
+      });
+
     // --- SCALES for + strand (overview bar, above the bar) ---
     const overviewTicks = xOverview.ticks(10).filter(t => t >= 0 && t <= mockChromosome.length);
     overviewSvg.selectAll('.overview-scale-plus')
@@ -191,6 +276,7 @@ function GenomeBrowser() {
       .attr('font-size', 11)
       .attr('fill', '#555')
       .text(d => numberWithCommas(Math.round(d)));
+
     // -- DETAIL BAR --
     d3.select(detailRef.current).selectAll('*').remove();
     const detailSvg = d3.select(detailRef.current)
@@ -204,8 +290,8 @@ function GenomeBrowser() {
     // Add a clipPath for the chromosome bar area (now tall enough for genes below)
     const chrBarY = 20;
     const chrBarH = 24;
-    const geneLineGap = 10;
-    const clipHeight = chrBarH + geneLineGap + 18 + 12 + 10; // bar + gap + both gene lines + padding
+    const geneLineGap = 24; // Increased from 10 to add more space
+    const clipHeight = chrBarH + geneLineGap * 2 + 18 + 12 + 20; // Increased height for more space
     detailSvg.append('clipPath')
       .attr('id', 'detail-clip')
       .append('rect')
@@ -269,8 +355,8 @@ function GenomeBrowser() {
     detailSvg.append('line')
       .attr('x1', margin.left)
       .attr('x2', availableWidth - margin.right)
-      .attr('y1', 72)
-      .attr('y2', 72)
+      .attr('y1', 84) // Increased from 72 to add more space
+      .attr('y2', 84) // Increased from 72 to add more space
       .attr('stroke', '#b0b0b0')
       .attr('stroke-width', 1);
 
@@ -297,7 +383,18 @@ function GenomeBrowser() {
       .attr('stroke-width', 8)
       .attr('fill', 'none')
       .attr('clip-path', 'url(#detail-clip)')
-      .attr('opacity', 0.75);
+      .attr('opacity', 0.75)
+      .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
+        setHoveredGene(d);
+      })
+      .on('mouseout', function() {
+        setHoveredGene(null);
+      })
+      .on('click', function(event, d) {
+        event.stopPropagation(); // Prevent triggering background click
+        setSelectedGene(d);
+      });
     // Draw - strand genes as arrows
     const minusGenes = mockChromosome.genes.filter(g => g.strand === '-');
     detailSvg.selectAll('.gene-minus-arrow')
@@ -305,12 +402,95 @@ function GenomeBrowser() {
       .enter()
       .append('path')
       .attr('class', 'gene-minus-arrow')
-      .attr('d', (d, i) => geneArrowPath(xDetail(d.start), xDetail(d.end), 72, 12, '-'))
+      .attr('d', (d, i) => geneArrowPath(xDetail(d.start), xDetail(d.end), 84, 12, '-')) // Increased from 72 to add more space
       .attr('stroke', (d, i) => getGeneColor(mockChromosome.genes.indexOf(d)))
       .attr('stroke-width', 8)
       .attr('fill', 'none')
       .attr('clip-path', 'url(#detail-clip)')
-      .attr('opacity', 0.75);
+      .attr('opacity', 0.75)
+      .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
+        setHoveredGene(d);
+      })
+      .on('mouseout', function() {
+        setHoveredGene(null);
+      })
+      .on('click', function(event, d) {
+        event.stopPropagation(); // Prevent triggering background click
+        setSelectedGene(d);
+      });
+    
+    // Add hit areas for genes in detail view
+    detailSvg.selectAll('.gene-plus-hitbox')
+      .data(plusGenes)
+      .enter()
+      .append('rect')
+      .attr('class', 'gene-plus-hitbox')
+      .attr('x', d => Math.max(margin.left, xDetail(d.start) - 5))
+      .attr('y', 44) // Above the gene arrow
+      .attr('width', d => Math.max(10, xDetail(d.end) - xDetail(d.start) + 10))
+      .attr('height', 20)
+      .attr('fill', 'transparent')
+      .attr('cursor', 'pointer')
+      .style('pointer-events', 'all')
+      .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
+        setHoveredGene(d);
+        
+        // Highlight associated arrow
+        detailSvg.selectAll('.gene-plus-arrow')
+          .filter(g => g === d)
+          .attr('stroke-width', 10)
+          .attr('opacity', 1);
+      })
+      .on('mouseout', function(event, d) {
+        setHoveredGene(null);
+        
+        // Remove highlight
+        detailSvg.selectAll('.gene-plus-arrow')
+          .attr('stroke-width', 8)
+          .attr('opacity', 0.75);
+      })
+      .on('click', function(event, d) {
+        event.stopPropagation();
+        setSelectedGene(d);
+      });
+      
+    detailSvg.selectAll('.gene-minus-hitbox')
+      .data(minusGenes)
+      .enter()
+      .append('rect')
+      .attr('class', 'gene-minus-hitbox')
+      .attr('x', d => Math.max(margin.left, xDetail(d.start) - 5))
+      .attr('y', 74) // Increased from 62 to add more space
+      .attr('width', d => Math.max(10, xDetail(d.end) - xDetail(d.start) + 10))
+      .attr('height', 20)
+      .attr('fill', 'transparent')
+      .attr('cursor', 'pointer')
+      .style('pointer-events', 'all')
+      .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
+        setHoveredGene(d);
+        
+        // Highlight associated arrow
+        detailSvg.selectAll('.gene-minus-arrow')
+          .filter(g => g === d)
+          .attr('stroke-width', 10)
+          .attr('opacity', 1);
+      })
+      .on('mouseout', function(event, d) {
+        setHoveredGene(null);
+        
+        // Remove highlight
+        detailSvg.selectAll('.gene-minus-arrow')
+          .attr('stroke-width', 8)
+          .attr('opacity', 0.75);
+      })
+      .on('click', function(event, d) {
+        event.stopPropagation();
+        setSelectedGene(d);
+      });
+
     // Gene labels for each strand
     detailSvg.selectAll('.gene-label-plus')
       .data(plusGenes)
@@ -318,7 +498,7 @@ function GenomeBrowser() {
       .append('text')
       .attr('class', 'gene-label-plus')
       .attr('x', d => xDetail((d.start + d.end) / 2))
-      .attr('y', 67)
+      .attr('y', 69) // Changed to position better with new spacing
       .attr('fill', '#333')
       .attr('font-size', 13)
       .attr('text-anchor', 'middle')
@@ -331,7 +511,7 @@ function GenomeBrowser() {
       .append('text')
       .attr('class', 'gene-label-minus')
       .attr('x', d => xDetail((d.start + d.end) / 2))
-      .attr('y', 85)
+      .attr('y', 99) // Changed from 85 to position better with new spacing
       .attr('fill', '#333')
       .attr('font-size', 13)
       .attr('text-anchor', 'middle')
@@ -361,6 +541,17 @@ function GenomeBrowser() {
     // --- SCALES for + strand (detail bar only, above the bar) ---
     const tickCount = 10;
     const ticks = xDetail.ticks(tickCount).filter(t => t >= zoomRegion[0] && t <= zoomRegion[1]);
+    
+    // Create a background for the scale area for brushing
+    detailSvg.append('rect')
+      .attr('class', 'scale-background')
+      .attr('x', margin.left)
+      .attr('y', 0)  // Expanded hitbox - start from the top
+      .attr('width', availableWidth - margin.left - margin.right)
+      .attr('height', 22)  // Taller hitbox to make selection easier
+      .attr('fill', 'transparent');
+      
+    // Major ticks with labels
     detailSvg.selectAll('.scale-plus')
       .data(ticks)
       .enter()
@@ -368,24 +559,152 @@ function GenomeBrowser() {
       .attr('class', 'scale-plus')
       .attr('x1', d => xDetail(d))
       .attr('x2', d => xDetail(d))
-      .attr('y1', 18)
+      .attr('y1', 16)
       .attr('y2', 20)
       .attr('stroke', '#555')
-      .attr('stroke-width', 1);
+      .attr('stroke-width', 1.5);
     detailSvg.selectAll('.scale-plus-label')
       .data(ticks)
       .enter()
       .append('text')
       .attr('class', 'scale-plus-label')
       .attr('x', d => xDetail(d))
-      .attr('y', 14)
+      .attr('y', 13)  // Moved up to accommodate larger ticks
       .attr('text-anchor', 'middle')
       .attr('font-size', 11)
       .attr('fill', '#555')
       .text(d => numberWithCommas(Math.round(d)));
+      
+    // --- BRUSH SELECTION FOR SCALE ---
+    const scaleBrush = d3.brushX()
+      .extent([[margin.left, 0], [availableWidth - margin.right, 22]]) // Expanded brush area
+      .on('start', function(event) {
+        if (!event.sourceEvent) return;
+        // Prevent event propagation to avoid conflicts with chromosome drag
+        if (event.sourceEvent) event.sourceEvent.stopPropagation();
+      })
+      .on('end', function(event) {
+        // Skip if no selection or programmatic event
+        if (!event.selection || !event.sourceEvent) return;
+        
+        // Prevent event propagation to avoid conflicts with chromosome drag
+        if (event.sourceEvent) event.sourceEvent.stopPropagation();
+        
+        const [x0, x1] = event.selection;
+        
+        // Only process if it's a real selection (not just a click)
+        if (Math.abs(x1 - x0) > 5) {
+          // Convert pixels to base positions
+          const newStart = xDetail.invert(x0);
+          const newEnd = xDetail.invert(x1);
+          
+          // Update zoom region
+          setZoomRegion([newStart, newEnd]);
+          
+          // Clear the brush
+          d3.select(this).call(scaleBrush.move, null);
+        }
+      });
+    
+    // Add brush to the scale area
+    const scaleBrushG = detailSvg.append('g')
+      .attr('class', 'brush scale-brush')
+      .call(scaleBrush);
+    
+    // Style the brush selection
+    scaleBrushG.selectAll('.selection')
+      .attr('fill', 'rgba(0, 100, 255, 0.15)')
+      .attr('stroke', 'rgba(0, 100, 255, 0.8)')
+      .attr('stroke-width', 1);
+      
+    // Style the brush handles
+    scaleBrushG.selectAll('.handle')
+      .attr('fill', 'rgba(0, 100, 255, 0.3)')
+      .attr('stroke', 'rgba(0, 100, 255, 0.8)')
+      .attr('stroke-width', 1);
+      
+    // Add 4 intermediate ticks between major ticks
+    if (ticks.length >= 2) {
+      const intermediateTicks = [];
+      for (let i = 0; i < ticks.length - 1; i++) {
+        const start = ticks[i];
+        const end = ticks[i + 1];
+        const step = (end - start) / 5;  // 5 segments = 4 intermediate ticks
+        
+        // Add 4 intermediate ticks
+        for (let j = 1; j <= 4; j++) {
+          intermediateTicks.push(start + step * j);
+        }
+      }
+      
+      detailSvg.selectAll('.scale-plus-intermediate')
+        .data(intermediateTicks)
+        .enter()
+        .append('line')
+        .attr('class', 'scale-plus-intermediate')
+        .attr('x1', d => xDetail(d))
+        .attr('x2', d => xDetail(d))
+        .attr('y1', 17)  // Start higher for taller ticks, but less tall than major ticks
+        .attr('y2', 20)  // Keep the same endpoint
+        .attr('stroke', '#888')
+        .attr('stroke-width', 0.8);  // Slightly thicker but still thinner than major ticks
+    }
+
+    // --- PANNING ON CHROMOSOME ---
+    // Add drag behavior to chromosome bar for panning
+    const dragChromosome = d3.drag()
+      .on('start', function(event) {
+        d3.select(this).attr('cursor', 'grabbing');
+        // Store initial position to calculate delta
+        d3.select(this).attr('data-start-x', event.x);
+        d3.select(this).attr('data-start-zoom', JSON.stringify(zoomRegion));
+      })
+      .on('drag', function(event) {
+        // Get the starting position and calculate shift
+        const startX = parseFloat(d3.select(this).attr('data-start-x') || event.x);
+        const startZoom = JSON.parse(d3.select(this).attr('data-start-zoom') || JSON.stringify(zoomRegion));
+        
+        // Total delta X from start of drag
+        const deltaX = event.x - startX;
+        
+        // Calculate how far to move in chromosome coordinates
+        const bpPerPixel = (startZoom[1] - startZoom[0]) / (availableWidth - margin.left - margin.right);
+        const bpShift = deltaX * bpPerPixel;
+        
+        // New start and end positions, shifted from the original position
+        let newStart = startZoom[0] - bpShift;
+        let newEnd = startZoom[1] - bpShift;
+        
+        // Keep within chromosome bounds
+        if (newStart < 0) {
+          newEnd += (0 - newStart);
+          newStart = 0;
+        }
+        if (newEnd > mockChromosome.length) {
+          newStart -= (newEnd - mockChromosome.length);
+          newEnd = mockChromosome.length;
+        }
+        
+        // Update the zoom region
+        setZoomRegion([newStart, newEnd]);
+      })
+      .on('end', function() {
+        d3.select(this).attr('cursor', 'grab');
+        // Clean up stored data
+        d3.select(this).attr('data-start-x', null);
+        d3.select(this).attr('data-start-zoom', null);
+      });
+      
+    // Add draggable behavior to chromosome bar with improved pointer events
+    detailSvg.select('.chr-bar')
+      .attr('cursor', 'grab')
+      .style('pointer-events', 'all') // Ensure pointer events are enabled
+      .call(dragChromosome);
+
     // --- Tooltip for genes in detail view ---
     detailSvg.selectAll('.gene-plus-arrow, .gene-minus-arrow')
       .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
         setHoveredGene(d);
       })
       .on('mouseout', function() {
@@ -394,13 +713,44 @@ function GenomeBrowser() {
     // Tooltip for genes in overview bar
     overviewSvg.selectAll('.gene')
       .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
         setHoveredGene(d);
       })
       .on('mouseout', function() {
         setHoveredGene(null);
+      })
+      .on('click', function(event, d) {
+        event.stopPropagation();
+        setSelectedGene(d);
       });
+
     // Remove old tooltip div if any
     d3.selectAll('.genome-tooltip').remove();
+
+    // Add click handler to clear selected gene when clicking on background
+    detailSvg.append('rect')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', availableWidth)
+      .attr('height', detailHeight + 40)
+      .attr('fill', 'transparent')
+      .style('pointer-events', 'all')
+      .lower() // Send to back so it doesn't interfere with other elements
+      .on('click', function() {
+        setSelectedGene(null);
+      });
+      
+    overviewSvg.append('rect')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', availableWidth)
+      .attr('height', overviewHeight)
+      .attr('fill', 'transparent')
+      .style('pointer-events', 'all')
+      .lower() // Send to back so it doesn't interfere with other elements
+      .on('click', function() {
+        setSelectedGene(null);
+      });
   }, [zoomRegion]);
 
   // --- Top Info Bar ---
@@ -416,17 +766,23 @@ function GenomeBrowser() {
   const visiblePixels = width - margin.left - margin.right;
   const minBpWindow = visiblePixels / 20;
   const maxZoom = mockChromosome.length / minBpWindow;
+  // Use log10 scale for zoom slider
+  const minZoomLog = Math.log10(minZoom);
+  const maxZoomLog = Math.log10(maxZoom);
   const currentZoom = Math.round(mockChromosome.length / (zoomRegion[1] - zoomRegion[0]));
+  const currentZoomLog = Math.log10(currentZoom);
 
   function handleZoomBarChange(e) {
-    const zoom = Number(e.target.value);
+    // Get log10 value, exponentiate to get real zoom
+    const logZoom = Number(e.target.value);
+    const zoom = Math.pow(10, logZoom);
     const center = (zoomRegion[0] + zoomRegion[1]) / 2;
     const regionSize = mockChromosome.length / zoom;
     let newStart = Math.max(0, Math.round(center - regionSize / 2));
     let newEnd = Math.min(mockChromosome.length, Math.round(center + regionSize / 2));
     // Clamp if out of bounds
     if (newStart < 0) {
-      newEnd -= newStart;
+      newEnd += (0 - newStart);
       newStart = 0;
     }
     if (newEnd > mockChromosome.length) {
@@ -463,17 +819,17 @@ function GenomeBrowser() {
           width: '100%',
           background: 'transparent',
           borderBottom: '1px solid #e1e6ee',
-          padding: '18px 32px',
-          fontSize: 22,
+          padding: '14px 28px',  
+          fontSize: 18,  
           fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
-          gap: 48,
+          gap: 32,  
           letterSpacing: '0.01em',
           position: 'sticky',
           top: 0,
           zIndex: 10,
-          minHeight: 56,
+          minHeight: 50,  
           borderTopLeftRadius: 18,
           borderTopRightRadius: 18
         }}>
@@ -481,26 +837,27 @@ function GenomeBrowser() {
           <span>Length: <b>{numberWithCommas(mockChromosome.length)} bp</b></span>
           <span>Genes: <b>{geneCount}</b></span>
           {/* --- ZOOM BAR TOOL --- */}
-          <span style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 220 }}>
-            <label htmlFor="zoom-bar" style={{ fontSize: 18 }}>Zoom:</label>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 200 }}>  
+            <label htmlFor="zoom-bar" style={{ fontSize: 16 }}>Zoom:</label>  
             <input
               id="zoom-bar"
               type="range"
-              min={minZoom}
-              max={Math.round(maxZoom)}
-              value={currentZoom}
+              min={minZoomLog}
+              max={maxZoomLog}
+              step={0.01}
+              value={currentZoomLog}
               onChange={handleZoomBarChange}
-              style={{ width: 140 }}
+              style={{ width: 120 }}  
             />
-            <span style={{ fontSize: 17 }}>{currentZoom}x</span>
+            <span style={{ fontSize: 15 }}>{currentZoom}x</span>  
           </span>
           {/* --- RESET VIEW BUTTON --- */}
           <button
             onClick={handleResetView}
             style={{
               marginLeft: 0,
-              fontSize: 17,
-              padding: '6px 18px',
+              fontSize: 15,  
+              padding: '5px 14px',  
               border: '1px solid #bbb',
               borderRadius: 7,
               background: '#f8f8fa',
@@ -511,7 +868,7 @@ function GenomeBrowser() {
           >Reset View</button>
           {/* --- VIEW RANGE INFO --- */}
           <span style={{ 
-            fontSize: 18, 
+            fontSize: 16,  
             color: '#444',
             marginLeft: 0,
             whiteSpace: 'nowrap',
@@ -532,21 +889,70 @@ function GenomeBrowser() {
         {/* Tooltip area (left) */}
         <div style={{ width: '50%', minWidth: 300, height: '100%', background: '#fff', borderRadius: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box', padding: '28px 30px', fontSize: 16, color: '#222', display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontWeight: 500, marginBottom: 8 }}>Tooltip for when we select an element (currently, only genes)</div>
-          {hoveredGene ? (
+          {(selectedGene || hoveredGene) ? (
             <div style={{ fontSize: 18, marginTop: 16, lineHeight: 1.7 }}>
-              <div><b>Name:</b> {hoveredGene.name}</div>
-              <div><b>Start:</b> {numberWithCommas(hoveredGene.start)}</div>
-              <div><b>End:</b> {numberWithCommas(hoveredGene.end)}</div>
-              <div><b>Strand:</b> {hoveredGene.strand}</div>
+              <div><b>Name:</b> {(selectedGene || hoveredGene).name}</div>
+              <div><b>Start:</b> {numberWithCommas((selectedGene || hoveredGene).start)}</div>
+              <div><b>End:</b> {numberWithCommas((selectedGene || hoveredGene).end)}</div>
+              <div><b>Strand:</b> {(selectedGene || hoveredGene).strand}</div>
+              {selectedGene && (
+                <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
+                  (Gene is selected. Click elsewhere to deselect.)
+                </div>
+              )}
             </div>
           ) : (
-            <div style={{ color: '#888', marginTop: 16 }}>Hover over a gene to see its details here.</div>
+            <div style={{ color: '#888', marginTop: 16 }}>Hover over or click a gene to see its details here.</div>
           )}
         </div>
         {/* Chatbot area (right) */}
         <div style={{ width: '50%', minWidth: 300, height: '100%', background: '#fff', borderRadius: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box', padding: '28px 30px', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontWeight: 500, marginBottom: 8 }}>ChatBot</div>
-          {/* Chat UI here */}
+          <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 22, letterSpacing: 0.5 }}>ChatBot</div>
+          {/* Chat messages area */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Placeholder for messages */}
+            <div style={{ alignSelf: 'flex-start', background: '#f0f6ff', borderRadius: 8, padding: '12px 18px', fontSize: 16, color: '#222', maxWidth: '80%' }}>
+              Hello! I can help answer questions about the genome you're viewing.
+            </div>
+            <div style={{ color: '#aaa', fontSize: 14, fontStyle: 'italic', alignSelf: 'center', margin: '10px 0' }}>
+              Messages will appear here.
+            </div>
+          </div>
+          {/* Input area */}
+          <form style={{ display: 'flex', gap: 8, marginTop: 12 }} onSubmit={e => e.preventDefault()}>
+            <input
+              type="text"
+              placeholder="Type a message..."
+              style={{
+                flex: 1,
+                padding: '12px 16px',
+                borderRadius: 20,
+                border: '1px solid #ddd',
+                fontSize: 16,
+                background: '#f8f8fa',
+                outline: 'none'
+              }}
+              disabled
+            />
+            <button
+              type="submit"
+              style={{
+                background: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '50%',
+                width: 40,
+                height: 40,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 20,
+                cursor: 'not-allowed',
+                opacity: 0.7
+              }}
+              disabled
+            >→</button>
+          </form>
         </div>
       </div>
     </div>
