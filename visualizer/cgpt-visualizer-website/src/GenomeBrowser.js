@@ -51,6 +51,7 @@ function GenomeBrowser() {
   const zoomRef = useRef();
   const [zoomRegion, setZoomRegion] = useState([0, mockChromosome.length]);
   const [hoveredGene, setHoveredGene] = useState(null);
+  const [selectedGene, setSelectedGene] = useState(null);
 
   // --- D3 Zoom Setup: Only once on mount ---
   useEffect(() => {
@@ -230,6 +231,7 @@ function GenomeBrowser() {
       .attr('cursor', 'pointer')
       .style('pointer-events', 'all')
       .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
         setHoveredGene(d);
         
         // Highlight the actual gene
@@ -244,6 +246,10 @@ function GenomeBrowser() {
         // Remove highlight
         overviewSvg.selectAll('.gene')
           .attr('stroke', 'none');
+      })
+      .on('click', function(event, d) {
+        event.stopPropagation();
+        setSelectedGene(d);
       });
 
     // --- SCALES for + strand (overview bar, above the bar) ---
@@ -377,7 +383,18 @@ function GenomeBrowser() {
       .attr('stroke-width', 8)
       .attr('fill', 'none')
       .attr('clip-path', 'url(#detail-clip)')
-      .attr('opacity', 0.75);
+      .attr('opacity', 0.75)
+      .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
+        setHoveredGene(d);
+      })
+      .on('mouseout', function() {
+        setHoveredGene(null);
+      })
+      .on('click', function(event, d) {
+        event.stopPropagation(); // Prevent triggering background click
+        setSelectedGene(d);
+      });
     // Draw - strand genes as arrows
     const minusGenes = mockChromosome.genes.filter(g => g.strand === '-');
     detailSvg.selectAll('.gene-minus-arrow')
@@ -390,7 +407,18 @@ function GenomeBrowser() {
       .attr('stroke-width', 8)
       .attr('fill', 'none')
       .attr('clip-path', 'url(#detail-clip)')
-      .attr('opacity', 0.75);
+      .attr('opacity', 0.75)
+      .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
+        setHoveredGene(d);
+      })
+      .on('mouseout', function() {
+        setHoveredGene(null);
+      })
+      .on('click', function(event, d) {
+        event.stopPropagation(); // Prevent triggering background click
+        setSelectedGene(d);
+      });
     
     // Add hit areas for genes in detail view
     detailSvg.selectAll('.gene-plus-hitbox')
@@ -406,6 +434,7 @@ function GenomeBrowser() {
       .attr('cursor', 'pointer')
       .style('pointer-events', 'all')
       .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
         setHoveredGene(d);
         
         // Highlight associated arrow
@@ -421,6 +450,10 @@ function GenomeBrowser() {
         detailSvg.selectAll('.gene-plus-arrow')
           .attr('stroke-width', 8)
           .attr('opacity', 0.75);
+      })
+      .on('click', function(event, d) {
+        event.stopPropagation();
+        setSelectedGene(d);
       });
       
     detailSvg.selectAll('.gene-minus-hitbox')
@@ -436,6 +469,7 @@ function GenomeBrowser() {
       .attr('cursor', 'pointer')
       .style('pointer-events', 'all')
       .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
         setHoveredGene(d);
         
         // Highlight associated arrow
@@ -451,6 +485,10 @@ function GenomeBrowser() {
         detailSvg.selectAll('.gene-minus-arrow')
           .attr('stroke-width', 8)
           .attr('opacity', 0.75);
+      })
+      .on('click', function(event, d) {
+        event.stopPropagation();
+        setSelectedGene(d);
       });
 
     // Gene labels for each strand
@@ -521,10 +559,10 @@ function GenomeBrowser() {
       .attr('class', 'scale-plus')
       .attr('x1', d => xDetail(d))
       .attr('x2', d => xDetail(d))
-      .attr('y1', 16)  // Start higher for taller ticks
-      .attr('y2', 20)  // Keep the same endpoint
+      .attr('y1', 16)
+      .attr('y2', 20)
       .attr('stroke', '#555')
-      .attr('stroke-width', 1.5);  // Slightly thicker
+      .attr('stroke-width', 1.5);
     detailSvg.selectAll('.scale-plus-label')
       .data(ticks)
       .enter()
@@ -666,6 +704,7 @@ function GenomeBrowser() {
     // --- Tooltip for genes in detail view ---
     detailSvg.selectAll('.gene-plus-arrow, .gene-minus-arrow')
       .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
         setHoveredGene(d);
       })
       .on('mouseout', function() {
@@ -674,13 +713,44 @@ function GenomeBrowser() {
     // Tooltip for genes in overview bar
     overviewSvg.selectAll('.gene')
       .on('mouseover', function(event, d) {
+        setSelectedGene(null); // Clear selection when hovering a new gene
         setHoveredGene(d);
       })
       .on('mouseout', function() {
         setHoveredGene(null);
+      })
+      .on('click', function(event, d) {
+        event.stopPropagation();
+        setSelectedGene(d);
       });
+
     // Remove old tooltip div if any
     d3.selectAll('.genome-tooltip').remove();
+
+    // Add click handler to clear selected gene when clicking on background
+    detailSvg.append('rect')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', availableWidth)
+      .attr('height', detailHeight + 40)
+      .attr('fill', 'transparent')
+      .style('pointer-events', 'all')
+      .lower() // Send to back so it doesn't interfere with other elements
+      .on('click', function() {
+        setSelectedGene(null);
+      });
+      
+    overviewSvg.append('rect')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', availableWidth)
+      .attr('height', overviewHeight)
+      .attr('fill', 'transparent')
+      .style('pointer-events', 'all')
+      .lower() // Send to back so it doesn't interfere with other elements
+      .on('click', function() {
+        setSelectedGene(null);
+      });
   }, [zoomRegion]);
 
   // --- Top Info Bar ---
@@ -712,7 +782,7 @@ function GenomeBrowser() {
     let newEnd = Math.min(mockChromosome.length, Math.round(center + regionSize / 2));
     // Clamp if out of bounds
     if (newStart < 0) {
-      newEnd -= newStart;
+      newEnd += (0 - newStart);
       newStart = 0;
     }
     if (newEnd > mockChromosome.length) {
@@ -749,17 +819,17 @@ function GenomeBrowser() {
           width: '100%',
           background: 'transparent',
           borderBottom: '1px solid #e1e6ee',
-          padding: '18px 32px',
-          fontSize: 22,
+          padding: '14px 28px',  
+          fontSize: 18,  
           fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
-          gap: 48,
+          gap: 32,  
           letterSpacing: '0.01em',
           position: 'sticky',
           top: 0,
           zIndex: 10,
-          minHeight: 56,
+          minHeight: 50,  
           borderTopLeftRadius: 18,
           borderTopRightRadius: 18
         }}>
@@ -767,8 +837,8 @@ function GenomeBrowser() {
           <span>Length: <b>{numberWithCommas(mockChromosome.length)} bp</b></span>
           <span>Genes: <b>{geneCount}</b></span>
           {/* --- ZOOM BAR TOOL --- */}
-          <span style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 220 }}>
-            <label htmlFor="zoom-bar" style={{ fontSize: 18 }}>Zoom:</label>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 200 }}>  
+            <label htmlFor="zoom-bar" style={{ fontSize: 16 }}>Zoom:</label>  
             <input
               id="zoom-bar"
               type="range"
@@ -777,17 +847,17 @@ function GenomeBrowser() {
               step={0.01}
               value={currentZoomLog}
               onChange={handleZoomBarChange}
-              style={{ width: 140 }}
+              style={{ width: 120 }}  
             />
-            <span style={{ fontSize: 17 }}>{currentZoom}x</span>
+            <span style={{ fontSize: 15 }}>{currentZoom}x</span>  
           </span>
           {/* --- RESET VIEW BUTTON --- */}
           <button
             onClick={handleResetView}
             style={{
               marginLeft: 0,
-              fontSize: 17,
-              padding: '6px 18px',
+              fontSize: 15,  
+              padding: '5px 14px',  
               border: '1px solid #bbb',
               borderRadius: 7,
               background: '#f8f8fa',
@@ -798,7 +868,7 @@ function GenomeBrowser() {
           >Reset View</button>
           {/* --- VIEW RANGE INFO --- */}
           <span style={{ 
-            fontSize: 18, 
+            fontSize: 16,  
             color: '#444',
             marginLeft: 0,
             whiteSpace: 'nowrap',
@@ -819,15 +889,20 @@ function GenomeBrowser() {
         {/* Tooltip area (left) */}
         <div style={{ width: '50%', minWidth: 300, height: '100%', background: '#fff', borderRadius: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box', padding: '28px 30px', fontSize: 16, color: '#222', display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontWeight: 500, marginBottom: 8 }}>Tooltip for when we select an element (currently, only genes)</div>
-          {hoveredGene ? (
+          {(selectedGene || hoveredGene) ? (
             <div style={{ fontSize: 18, marginTop: 16, lineHeight: 1.7 }}>
-              <div><b>Name:</b> {hoveredGene.name}</div>
-              <div><b>Start:</b> {numberWithCommas(hoveredGene.start)}</div>
-              <div><b>End:</b> {numberWithCommas(hoveredGene.end)}</div>
-              <div><b>Strand:</b> {hoveredGene.strand}</div>
+              <div><b>Name:</b> {(selectedGene || hoveredGene).name}</div>
+              <div><b>Start:</b> {numberWithCommas((selectedGene || hoveredGene).start)}</div>
+              <div><b>End:</b> {numberWithCommas((selectedGene || hoveredGene).end)}</div>
+              <div><b>Strand:</b> {(selectedGene || hoveredGene).strand}</div>
+              {selectedGene && (
+                <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
+                  (Gene is selected. Click elsewhere to deselect.)
+                </div>
+              )}
             </div>
           ) : (
-            <div style={{ color: '#888', marginTop: 16 }}>Hover over a gene to see its details here.</div>
+            <div style={{ color: '#888', marginTop: 16 }}>Hover over or click a gene to see its details here.</div>
           )}
         </div>
         {/* Chatbot area (right) */}
