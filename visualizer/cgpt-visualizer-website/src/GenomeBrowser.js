@@ -17,7 +17,7 @@ const baseColors = {
 const realChromosome = {
   name: chromosomeData.name,
   length: chromosomeData.length,
-  genes: chromosomeData.genes
+  genes: []
 };
 
 const realSequence = chromosomeData.sequence.toUpperCase().replace(/[^ACGT]/g, ''); // Ensure clean sequence
@@ -146,7 +146,7 @@ function GenomeBrowser() {
       .attr('fill', (d, i) => getGeneColor(i))
       .attr('rx', 5);
     // Red rectangle for zoom region
-    const isFullView = zoomRegion[0] <= 0 + 1 && zoomRegion[1] >= mockChromosome.length - 1;
+    const isFullView = zoomRegion[0] <= 0 + 1 && zoomRegion[1] >= realChromosome.length - 1;
 
     // Draggable zoom rectangle
     const dragZoomRect = d3.drag()
@@ -206,7 +206,7 @@ function GenomeBrowser() {
 
     // Make genes easier to select in overview
     overviewSvg.selectAll('.gene-hitbox')
-      .data(mockChromosome.genes)
+      .data(realChromosome.genes)
       .enter()
       .append('rect')
       .attr('class', 'gene-hitbox')
@@ -390,7 +390,7 @@ function GenomeBrowser() {
       .append('path')
       .attr('class', 'gene-minus-arrow')
       .attr('d', (d, i) => geneArrowPath(xDetail(d.start), xDetail(d.end), 84, 12, '-')) // Increased from 72 to add more space
-      .attr('stroke', (d, i) => getGeneColor(mockChromosome.genes.indexOf(d)))
+      .attr('stroke', (d, i) => getGeneColor(realChromosome.genes.indexOf(d)))
       .attr('stroke-width', 8)
       .attr('fill', 'none')
       .attr('clip-path', 'url(#detail-clip)')
@@ -667,9 +667,9 @@ function GenomeBrowser() {
           newEnd += (0 - newStart);
           newStart = 0;
         }
-        if (newEnd > mockChromosome.length) {
-          newStart -= (newEnd - mockChromosome.length);
-          newEnd = mockChromosome.length;
+        if (newEnd > realChromosome.length) {
+          newStart -= (newEnd - realChromosome.length);
+          newEnd = realChromosome.length;
         }
 
         // Update the zoom region
@@ -752,11 +752,11 @@ function GenomeBrowser() {
   const margin = { left: 60, right: 60 };
   const visiblePixels = width - margin.left - margin.right;
   const minBpWindow = visiblePixels / 20;
-  const maxZoom = mockChromosome.length / minBpWindow;
+  const maxZoom = realChromosome.length / minBpWindow;
   // Use log10 scale for zoom slider
   const minZoomLog = Math.log10(minZoom);
   const maxZoomLog = Math.log10(maxZoom);
-  const currentZoom = Math.round(mockChromosome.length / (zoomRegion[1] - zoomRegion[0]));
+  const currentZoom = Math.round(realChromosome.length / (zoomRegion[1] - zoomRegion[0]));
   const currentZoomLog = Math.log10(currentZoom);
 
   function handleZoomBarChange(e) {
