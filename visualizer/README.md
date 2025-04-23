@@ -24,28 +24,27 @@ This project is an interactive, web-based 2D genome browser built with **React**
 5. **AI Insights**: Click the “AI Insights” button for a summary of the displayed region.
 
 ## Getting Started
-1. **Initialize the Python environment** (using [uv](https://github.com/astral-sh/uv)):
-   ```bash
-   uv init
-   ```
-   This will create a `pyproject.toml` for dependency management and a `.venv` for your virtual environment.
-2. **Add Python dependencies** as needed:
-   ```bash
-   uv add <package-name>
-   ```
-   For example, to add numpy: `uv add numpy`
-3. **Run Python scripts** (for preprocessing or data handling):
-   ```bash
-   uv run <your_script.py>
-   ```
-4. **Run the development server** (for the React frontend):
+1. **Download data**
+   - Go to [https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_014441545.1/] and download the FASTA file along with annotations (GFF).
+   - Extract it in the `data` folder
+2. **Run Python scripts** (for preprocessing or data handling):
+   - Install `uv` if it is not already on your machine (follow instructions on [https://docs.astral.sh/uv/getting-started/installation/])
+   - Run the following commands
    ```bash
    cd visualizer
+   uv run scripts/split_gff.py data/data/GCF_014441545.1/genomic.gff -t genes # this should be fast (< 1 sec)
+   uv run scripts/create_chromosome_dbs.py data/data/GCF_014441545.1/chromosomes NC_051805.1.gff  # should take around 1 minute
+   # only load the first chromosone in a DB. If you need more, you can pass no file (defaults to all), or more files
+   # uv run scripts/create_chromosome_dbs.py data/data/GCF_014441545.1/chromosomes NC_051805.1.gff NC_051806.1.gff NC_051807.1.gff
+   ```
+3. **Run the development server** (for the React frontend):
+   ```bash
+   cd visualizer/cgpt-visualizer-website  # if you're not already in it
    npm install
    npm start
    ```
-5. **Load Data**: Place your reference and annotation files in the appropriate data directory.
-6. **Open in Browser**: Navigate to `http://localhost:3000` (or the port shown in your terminal).
+4. **Load Data**: Place your reference and annotation files in the appropriate data directory.
+5. **Open in Browser**: Navigate to `http://localhost:3000` (or the port shown in your terminal).
 
 ## Directory Structure
 ```

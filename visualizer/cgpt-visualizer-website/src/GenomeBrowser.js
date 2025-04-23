@@ -1,15 +1,45 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
 
+const geneColors = [
+  '#4F81BD', '#C0504D', '#9BBB59', '#8064A2', '#F79646',
+  '#2C4D75', '#9E480E', '#77933C', '#604A7B', '#C00000'
+];
+
+const baseColors = {
+  A: '#1f77b4', // blue
+  C: '#2ca02c', // green
+  T: '#d62728', // red
+  G: '#ff7f0e'  // orange
+};
+
 const mockChromosome = {
   name: 'chr1',
-  length: 25000000, // demo: 25 million bp for visible genes
+  length: 2500000, // demo: 2.5 million bp for visible genes
   genes: [
-    { name: 'GENE1', start: 1000000, end: 1010000, strand: '+', color: '#4F81BD' },
-    { name: 'GENE2', start: 5000000, end: 5015000, strand: '-', color: '#C0504D' },
-    { name: 'GENE3', start: 20000000, end: 20005000, strand: '+', color: '#9BBB59' },
+    { name: 'GENE1', start: 100000, end: 101000, strand: '+' },
+    { name: 'GENE2', start: 500000, end: 501500, strand: '-' },
+    { name: 'GENE3', start: 2000000, end: 2000500, strand: '+' },
   ]
 };
+
+// Assign color to gene by index (alternating from 10 colors)
+function getGeneColor(index) {
+  return geneColors[index % geneColors.length];
+}
+
+// Example mock sequence for demo: repeat 'ACTG' to match chromosome length
+function defineMockSequence(length) {
+  // Repeat 'ACTG' to fill the chromosome
+  const motif = 'ACTG';
+  let seq = '';
+  const repeatCount = Math.floor(length / motif.length);
+  for (let i = 0; i < repeatCount; ++i) seq += motif;
+  seq += motif.slice(0, length - seq.length); // pad to exact length
+  return seq;
+}
+
+const mockSequence = defineMockSequence(mockChromosome.length);
 
 function numberWithCommas(x) {
   return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -20,43 +50,47 @@ function GenomeBrowser() {
   const detailRef = useRef();
   const zoomRef = useRef();
   const [zoomRegion, setZoomRegion] = useState([0, mockChromosome.length]);
+  const [hoveredGene, setHoveredGene] = useState(null);
 
   // --- D3 Zoom Setup: Only once on mount ---
   useEffect(() => {
     const width = window.innerWidth;
     const detailHeight = 80;
     const margin = { left: 60, right: 60 };
-
+    const minZoom = 1;
+    // Maximum zoom: allow 1bp per 1.25px (double again)
+    const visiblePixels = width - margin.left - margin.right;
+    const minBpWindow = visiblePixels / 20; // at max zoom, show 1bp per 1.25px
+    const maxZoom = mockChromosome.length / minBpWindow;
     const zoom = d3.zoom()
-      .scaleExtent([1, mockChromosome.length / 100000])
+      .scaleExtent([minZoom, maxZoom])
       .translateExtent([[margin.left, 0], [width - margin.right, detailHeight]])
       .extent([[margin.left, 0], [width - margin.right, detailHeight]])
       .on('zoom', (event) => {
         const t = event.transform;
-        const x = d3.scaleLinear().domain([0, mockChromosome.length]).range([margin.left, width - margin.right]);
+        const x = d3.scaleLinear().domain([0, mockChromosome.length]).range([margin.left, width - margin.left - margin.right]);
         const newDomain = t.rescaleX(x).domain();
-        // Clamp to chromosome
         let newRegion = [
           Math.max(0, newDomain[0]),
           Math.min(mockChromosome.length, newDomain[1])
         ];
-        // If zoomed out to the full chromosome (or beyond), snap to full
         if (newRegion[0] <= 0 + 1 && newRegion[1] >= mockChromosome.length - 1) {
           newRegion = [0, mockChromosome.length];
         }
-        // Only update if region changed
-        if (
-          Math.abs(newRegion[0] - zoomRegion[0]) > 1 ||
-          Math.abs(newRegion[1] - zoomRegion[1]) > 1
-        ) {
-          setZoomRegion(newRegion);
-        }
+        // Only update if region actually changed, to avoid infinite loop
+        setZoomRegion(prev => {
+          if (
+            Math.abs(newRegion[0] - prev[0]) > 0.5 ||
+            Math.abs(newRegion[1] - prev[1]) > 0.5
+          ) {
+            return newRegion;
+          }
+          return prev;
+        });
       });
     d3.select(detailRef.current).call(zoom);
     zoomRef.current = zoom;
-    // Initial transform (fit whole chromosome)
     d3.select(detailRef.current).call(zoom.transform, d3.zoomIdentity);
-    // Prevent default D3 double-click zoom-in and use our own reset
     d3.select(detailRef.current).on('dblclick.zoom', null);
     d3.select(detailRef.current).on('dblclick.reset', () => {
       d3.select(detailRef.current).transition().duration(300).call(zoom.transform, d3.zoomIdentity);
@@ -65,27 +99,48 @@ function GenomeBrowser() {
     // eslint-disable-next-line
   }, []);
 
+  // Synchronize d3 zoom transform with zoomRegion changes (from slider/tool)
+  useEffect(() => {
+    if (!zoomRef.current || !detailRef.current) return;
+    const width = window.innerWidth;
+    const margin = { left: 60, right: 60 };
+    const x = d3.scaleLinear().domain([0, mockChromosome.length]).range([margin.left, width - margin.left - margin.right]);
+    const k = (mockChromosome.length / (zoomRegion[1] - zoomRegion[0]));
+    const tx = -x(zoomRegion[0]) * k + margin.left;
+    const transform = d3.zoomIdentity.translate(tx, 0).scale(k);
+    // Only update transform if not already at this zoom
+    const currentTransform = d3.zoomTransform(detailRef.current);
+    if (
+      Math.abs(currentTransform.k - k) > 0.01 ||
+      Math.abs(currentTransform.x - tx) > 0.5
+    ) {
+      d3.select(detailRef.current).call(zoomRef.current.transform, transform);
+    }
+  }, [zoomRegion]);
+
   // --- Draw both SVGs whenever zoomRegion changes ---
   useEffect(() => {
-    const width = window.innerWidth;
+    // Get available width accounting for chat panel
+    const availableWidth = window.innerWidth;
     const overviewHeight = 80;
     const detailHeight = 100;
     const margin = { left: 60, right: 60 };
+    
     // -- OVERVIEW BAR --
     d3.select(overviewRef.current).selectAll('*').remove();
     const overviewSvg = d3.select(overviewRef.current)
-      .attr('width', width)
+      .attr('width', availableWidth)
       .attr('height', overviewHeight)
       .style('background', '#f8f8fa');
     const xOverview = d3.scaleLinear()
       .domain([0, mockChromosome.length])
-      .range([margin.left, width - margin.right]);
+      .range([margin.left, availableWidth - margin.right]);
     // Chromosome bar (move lower)
-    const overviewBarY = 32; // was 12, now lower for scale visibility
+    const overviewBarY = 32; // was 12, now lower 
     overviewSvg.append('rect')
       .attr('x', margin.left)
       .attr('y', overviewBarY)
-      .attr('width', width - margin.left - margin.right)
+      .attr('width', availableWidth - margin.left - margin.right)
       .attr('height', 16)
       .attr('rx', 10)
       .attr('fill', '#cccccc');
@@ -99,7 +154,7 @@ function GenomeBrowser() {
       .attr('y', overviewBarY + 1)
       .attr('width', d => Math.max(1, xOverview(d.end) - xOverview(d.start)))
       .attr('height', 14)
-      .attr('fill', d => d.color)
+      .attr('fill', (d, i) => getGeneColor(i))
       .attr('rx', 5);
     // Red rectangle for zoom region
     const isFullView = zoomRegion[0] <= 0 + 1 && zoomRegion[1] >= mockChromosome.length - 1;
@@ -107,7 +162,7 @@ function GenomeBrowser() {
       .attr('class', 'zoom-rect')
       .attr('x', isFullView ? margin.left : xOverview(zoomRegion[0]))
       .attr('y', overviewBarY - 5)
-      .attr('width', isFullView ? (width - margin.left - margin.right) : (xOverview(zoomRegion[1]) - xOverview(zoomRegion[0])))
+      .attr('width', isFullView ? (availableWidth - margin.left - margin.right) : (xOverview(zoomRegion[1]) - xOverview(zoomRegion[0])))
       .attr('height', 26)
       .attr('fill', 'none')
       .attr('stroke', 'red')
@@ -139,21 +194,25 @@ function GenomeBrowser() {
     // -- DETAIL BAR --
     d3.select(detailRef.current).selectAll('*').remove();
     const detailSvg = d3.select(detailRef.current)
-      .attr('width', width)
+      .attr('width', availableWidth)
       .attr('height', detailHeight + 40)
       .style('background', '#fff');
     // Scales
     const xDetail = d3.scaleLinear()
       .domain(zoomRegion)
-      .range([margin.left, width - margin.right]);
-    // Add a clipPath for the chromosome bar area
+      .range([margin.left, availableWidth - margin.right]);
+    // Add a clipPath for the chromosome bar area (now tall enough for genes below)
+    const chrBarY = 20;
+    const chrBarH = 24;
+    const geneLineGap = 10;
+    const clipHeight = chrBarH + geneLineGap + 18 + 12 + 10; // bar + gap + both gene lines + padding
     detailSvg.append('clipPath')
       .attr('id', 'detail-clip')
       .append('rect')
       .attr('x', margin.left)
-      .attr('y', 20)
-      .attr('width', width - margin.left - margin.right)
-      .attr('height', 24);
+      .attr('y', chrBarY)
+      .attr('width', availableWidth - margin.left - margin.right)
+      .attr('height', clipHeight);
     // Chromosome bar
     // Remove rounded corners except at chromosome ends
     const isAtChromStart = Math.abs(zoomRegion[0] - 0) < 1;
@@ -163,27 +222,25 @@ function GenomeBrowser() {
     // SVG only supports one rx, so we use a path for custom corners
     if (rxLeft !== rxRight) {
       // Draw as path for mixed corners
-      const barY = 20;
-      const barH = 24;
       const barX = margin.left;
-      const barW = width - margin.left - margin.right;
+      const barW = availableWidth - margin.left - margin.right;
       let d = '';
-      d += `M${barX + rxLeft},${barY}`;
+      d += `M${barX + rxLeft},${chrBarY}`;
       d += `H${barX + barW - rxRight}`;
       if (rxRight) {
-        d += `A${rxRight},${rxRight} 0 0 1 ${barX + barW},${barY + rxRight}`;
-        d += `V${barY + barH - rxRight}`;
-        d += `A${rxRight},${rxRight} 0 0 1 ${barX + barW - rxRight},${barY + barH}`;
+        d += `A${rxRight},${rxRight} 0 0 1 ${barX + barW},${chrBarY + rxRight}`;
+        d += `V${chrBarY + chrBarH - rxRight}`;
+        d += `A${rxRight},${rxRight} 0 0 1 ${barX + barW - rxRight},${chrBarY + chrBarH}`;
       } else {
-        d += `V${barY + barH}`;
+        d += `V${chrBarY + chrBarH}`;
       }
       d += `H${barX + rxLeft}`;
       if (rxLeft) {
-        d += `A${rxLeft},${rxLeft} 0 0 1 ${barX},${barY + barH - rxLeft}`;
-        d += `V${barY + rxLeft}`;
-        d += `A${rxLeft},${rxLeft} 0 0 1 ${barX + rxLeft},${barY}`;
+        d += `A${rxLeft},${rxLeft} 0 0 1 ${barX},${chrBarY + chrBarH - rxLeft}`;
+        d += `V${chrBarY + rxLeft}`;
+        d += `A${rxLeft},${rxLeft} 0 0 1 ${barX + rxLeft},${chrBarY}`;
       } else {
-        d += `V${barY}`;
+        d += `V${chrBarY}`;
       }
       d += 'Z';
       detailSvg.append('path')
@@ -194,50 +251,113 @@ function GenomeBrowser() {
       detailSvg.append('rect')
         .attr('class', 'chr-bar')
         .attr('x', margin.left)
-        .attr('y', 20)
-        .attr('width', width - margin.left - margin.right)
-        .attr('height', 24)
+        .attr('y', chrBarY)
+        .attr('width', availableWidth - margin.left - margin.right)
+        .attr('height', chrBarH)
         .attr('rx', rxLeft)
         .attr('fill', '#cccccc');
     }
-    // Genes (clipped)
-    detailSvg.selectAll('.gene')
-      .data(mockChromosome.genes)
+
+    // --- TRACK LINES for gene rows ---
+    detailSvg.append('line')
+      .attr('x1', margin.left)
+      .attr('x2', availableWidth - margin.right)
+      .attr('y1', 54)
+      .attr('y2', 54)
+      .attr('stroke', '#b0b0b0')
+      .attr('stroke-width', 1);
+    detailSvg.append('line')
+      .attr('x1', margin.left)
+      .attr('x2', availableWidth - margin.right)
+      .attr('y1', 72)
+      .attr('y2', 72)
+      .attr('stroke', '#b0b0b0')
+      .attr('stroke-width', 1);
+
+    // --- GENES WITH ARROWS ---
+    // Helper to draw an arrow for a gene (SVG path)
+    function geneArrowPath(x1, x2, y, height, strand) {
+      const w = Math.abs(x2 - x1);
+      if (w < 12) return `M${x1},${y} h${w}`; // too small for arrow
+      if (strand === '+') {
+        return `M${x1},${y} h${w-7} l4,-5 l0,10 l-4,-5 h7`;
+      } else {
+        return `M${x2},${y} h-${w-7} l-4,-5 l0,10 l4,-5 h-7`;
+      }
+    }
+    // Draw + strand genes as arrows
+    const plusGenes = mockChromosome.genes.filter(g => g.strand === '+');
+    detailSvg.selectAll('.gene-plus-arrow')
+      .data(plusGenes)
       .enter()
-      .append('rect')
-      .attr('class', 'gene')
-      .attr('x', d => xDetail(d.start))
-      .attr('y', 24)
-      .attr('width', d => Math.max(1, xDetail(d.end) - xDetail(d.start)))
-      .attr('height', 16)
-      .attr('fill', d => d.color)
-      .attr('rx', 5)
+      .append('path')
+      .attr('class', 'gene-plus-arrow')
+      .attr('d', (d, i) => geneArrowPath(xDetail(d.start), xDetail(d.end), 54, 12, '+'))
+      .attr('stroke', (d, i) => getGeneColor(mockChromosome.genes.indexOf(d)))
+      .attr('stroke-width', 8)
+      .attr('fill', 'none')
       .attr('clip-path', 'url(#detail-clip)')
-      .on('mouseover', function (event, d) {
-        d3.select(this).attr('stroke', 'black').attr('stroke-width', 2);
-        tooltip.style('display', 'block')
-          .html(`<b>${d.name}</b><br/>${numberWithCommas(d.start)} - ${numberWithCommas(d.end)}<br/>Strand: ${d.strand}`)
-          .style('left', (event.pageX + 10) + 'px')
-          .style('top', (event.pageY - 28) + 'px');
-      })
-      .on('mouseout', function () {
-        d3.select(this).attr('stroke', null);
-        tooltip.style('display', 'none');
-      });
-    // Gene labels under the bar (clipped)
-    detailSvg.selectAll('.gene-label')
-      .data(mockChromosome.genes)
+      .attr('opacity', 0.75);
+    // Draw - strand genes as arrows
+    const minusGenes = mockChromosome.genes.filter(g => g.strand === '-');
+    detailSvg.selectAll('.gene-minus-arrow')
+      .data(minusGenes)
+      .enter()
+      .append('path')
+      .attr('class', 'gene-minus-arrow')
+      .attr('d', (d, i) => geneArrowPath(xDetail(d.start), xDetail(d.end), 72, 12, '-'))
+      .attr('stroke', (d, i) => getGeneColor(mockChromosome.genes.indexOf(d)))
+      .attr('stroke-width', 8)
+      .attr('fill', 'none')
+      .attr('clip-path', 'url(#detail-clip)')
+      .attr('opacity', 0.75);
+    // Gene labels for each strand
+    detailSvg.selectAll('.gene-label-plus')
+      .data(plusGenes)
       .enter()
       .append('text')
-      .attr('class', 'gene-label')
+      .attr('class', 'gene-label-plus')
       .attr('x', d => xDetail((d.start + d.end) / 2))
-      .attr('y', 56)
+      .attr('y', 67)
       .attr('fill', '#333')
       .attr('font-size', 13)
       .attr('text-anchor', 'middle')
       .attr('alignment-baseline', 'hanging')
       .attr('clip-path', 'url(#detail-clip)')
-      .text(d => xDetail(d.end) - xDetail(d.start) > 20 ? d.name : '');
+      .text((d, i) => xDetail(d.end) - xDetail(d.start) > 20 ? d.name : '');
+    detailSvg.selectAll('.gene-label-minus')
+      .data(minusGenes)
+      .enter()
+      .append('text')
+      .attr('class', 'gene-label-minus')
+      .attr('x', d => xDetail((d.start + d.end) / 2))
+      .attr('y', 85)
+      .attr('fill', '#333')
+      .attr('font-size', 13)
+      .attr('text-anchor', 'middle')
+      .attr('alignment-baseline', 'hanging')
+      .attr('clip-path', 'url(#detail-clip)')
+      .text((d, i) => xDetail(d.end) - xDetail(d.start) > 20 ? d.name : '');
+
+    // --- DNA LETTERS (when zoomed in enough) ---
+    const bpPerPixel = (zoomRegion[1] - zoomRegion[0]) / (availableWidth - margin.left - margin.right);
+    if (bpPerPixel <= 0.2 && mockSequence.length > 0) { // 1bp per 5 pixels
+      // Only show letters if zoomed enough (1bp per 5 pixel or better)
+      const start = Math.max(0, Math.floor(zoomRegion[0]));
+      const end = Math.min(mockSequence.length, Math.ceil(zoomRegion[1]));
+      for (let i = start; i < end; ++i) {
+        const base = mockSequence[i] || '';
+        detailSvg.append('text')
+          .attr('x', xDetail(i + 0.5))
+          .attr('y', 38)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', 16)
+          .attr('font-family', 'monospace')
+          .attr('fill', baseColors[base] || '#222')
+          .attr('pointer-events', 'none')
+          .text(base);
+      }
+    }
     // --- SCALES for + strand (detail bar only, above the bar) ---
     const tickCount = 10;
     const ticks = xDetail.ticks(tickCount).filter(t => t >= zoomRegion[0] && t <= zoomRegion[1]);
@@ -263,20 +383,24 @@ function GenomeBrowser() {
       .attr('font-size', 11)
       .attr('fill', '#555')
       .text(d => numberWithCommas(Math.round(d)));
-    // Tooltip
-    const tooltip = d3.select('body').append('div')
-      .attr('class', 'genome-tooltip')
-      .style('position', 'absolute')
-      .style('background', '#fff')
-      .style('border', '1px solid #ccc')
-      .style('padding', '6px 12px')
-      .style('border-radius', '4px')
-      .style('pointer-events', 'none')
-      .style('display', 'none')
-      .style('font-size', '14px');
-    return () => {
-      tooltip.remove();
-    };
+    // --- Tooltip for genes in detail view ---
+    detailSvg.selectAll('.gene-plus-arrow, .gene-minus-arrow')
+      .on('mouseover', function(event, d) {
+        setHoveredGene(d);
+      })
+      .on('mouseout', function() {
+        setHoveredGene(null);
+      });
+    // Tooltip for genes in overview bar
+    overviewSvg.selectAll('.gene')
+      .on('mouseover', function(event, d) {
+        setHoveredGene(d);
+      })
+      .on('mouseout', function() {
+        setHoveredGene(null);
+      });
+    // Remove old tooltip div if any
+    d3.selectAll('.genome-tooltip').remove();
   }, [zoomRegion]);
 
   // --- Top Info Bar ---
@@ -286,10 +410,12 @@ function GenomeBrowser() {
   const regionBp = regionEnd - regionStart;
 
   // --- Zoom Bar Tool ---
-  // Slider min: 1x (full view), max: 100x zoom (arbitrary, can adjust)
   const minZoom = 1;
-  const maxZoom = 100;
-  const fullRegion = [0, mockChromosome.length];
+  const width = window.innerWidth;
+  const margin = { left: 60, right: 60 };
+  const visiblePixels = width - margin.left - margin.right;
+  const minBpWindow = visiblePixels / 20;
+  const maxZoom = mockChromosome.length / minBpWindow;
   const currentZoom = Math.round(mockChromosome.length / (zoomRegion[1] - zoomRegion[0]));
 
   function handleZoomBarChange(e) {
@@ -318,61 +444,111 @@ function GenomeBrowser() {
   }
 
   return (
-    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', margin: 0, padding: 0, background: '#f8f8fa' }}>
+    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', margin: 0, padding: 0, background: '#f0f4fa', display: 'flex', flexDirection: 'column' }}>
+      {/* Top section: Info bar + Genome browser, visually carded */}
       <div style={{
-        width: '100vw',
-        background: '#f0f4fa',
-        borderBottom: '1px solid #d0d6e0',
-        padding: '10px 40px 8px 40px',
-        fontSize: 18,
-        fontWeight: 500,
+        width: 'calc(100% - 48px)',
+        height: '320px',
+        minHeight: 260,
+        margin: '24px auto 12px auto',
+        background: '#fff',
+        borderRadius: 18,
+        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+        zIndex: 1,
         display: 'flex',
-        alignItems: 'center',
-        gap: 40,
-        letterSpacing: '0.01em',
-        position: 'sticky',
-        top: 0,
-        zIndex: 10
+        flexDirection: 'column'
       }}>
-        <span>Chr: <b>{mockChromosome.name}</b></span>
-        <span>Length: <b>{numberWithCommas(mockChromosome.length)} bp</b></span>
-        <span>Genes: <b>{geneCount}</b></span>
-        {/* --- ZOOM BAR TOOL --- */}
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label htmlFor="zoom-bar" style={{ fontSize: 15 }}>Zoom:</label>
-          <input
-            id="zoom-bar"
-            type="range"
-            min={minZoom}
-            max={maxZoom}
-            value={currentZoom}
-            onChange={handleZoomBarChange}
-            style={{ width: 120 }}
-          />
-          <span style={{ fontSize: 14 }}>{currentZoom}x</span>
-        </span>
-        {/* --- RESET VIEW BUTTON --- */}
-        <button
-          onClick={handleResetView}
-          style={{
-            marginLeft: 12,
-            fontSize: 14,
-            padding: '4px 14px',
-            border: '1px solid #bbb',
-            borderRadius: 6,
-            background: '#f8f8fa',
-            cursor: 'pointer',
-            transition: 'background 0.2s',
-            fontWeight: 500
-          }}
-        >Reset View</button>
-        {/* --- VIEW RANGE INFO (last element, left aligned) --- */}
-        <span style={{ fontSize: 16, color: '#444' }}>
-          View: {numberWithCommas(regionStart)} - {numberWithCommas(regionEnd)} bp ({numberWithCommas(regionBp)} bp)
-        </span>
+        {/* Info bar - larger height */}
+        <div style={{
+          width: '100%',
+          background: 'transparent',
+          borderBottom: '1px solid #e1e6ee',
+          padding: '18px 32px',
+          fontSize: 22,
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 48,
+          letterSpacing: '0.01em',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          minHeight: 56,
+          borderTopLeftRadius: 18,
+          borderTopRightRadius: 18
+        }}>
+          <span>Chr: <b>{mockChromosome.name}</b></span>
+          <span>Length: <b>{numberWithCommas(mockChromosome.length)} bp</b></span>
+          <span>Genes: <b>{geneCount}</b></span>
+          {/* --- ZOOM BAR TOOL --- */}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 220 }}>
+            <label htmlFor="zoom-bar" style={{ fontSize: 18 }}>Zoom:</label>
+            <input
+              id="zoom-bar"
+              type="range"
+              min={minZoom}
+              max={Math.round(maxZoom)}
+              value={currentZoom}
+              onChange={handleZoomBarChange}
+              style={{ width: 140 }}
+            />
+            <span style={{ fontSize: 17 }}>{currentZoom}x</span>
+          </span>
+          {/* --- RESET VIEW BUTTON --- */}
+          <button
+            onClick={handleResetView}
+            style={{
+              marginLeft: 0,
+              fontSize: 17,
+              padding: '6px 18px',
+              border: '1px solid #bbb',
+              borderRadius: 7,
+              background: '#f8f8fa',
+              cursor: 'pointer',
+              transition: 'background 0.2s',
+              fontWeight: 600
+            }}
+          >Reset View</button>
+          {/* --- VIEW RANGE INFO --- */}
+          <span style={{ 
+            fontSize: 18, 
+            color: '#444',
+            marginLeft: 0,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}>
+            View: {numberWithCommas(regionStart)} - {numberWithCommas(regionEnd)} bp ({numberWithCommas(regionBp)} bp)
+          </span>
+        </div>
+        {/* Genome SVGs */}
+        <div style={{ width: '100%', height: 'calc(100% - 64px)', background: '#fff', borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
+          <svg ref={overviewRef} style={{ display: 'block', width: '100%' }} />
+          <svg ref={detailRef} style={{ display: 'block', width: '100%' }} />
+        </div>
       </div>
-      <svg ref={overviewRef} style={{ display: 'block' }}></svg>
-      <svg ref={detailRef} style={{ display: 'block' }}></svg>
+      {/* Bottom section: Tooltip (left) + Chatbot (right) visually carded */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, width: '100%', background: 'transparent', position: 'relative', gap: 24, padding: '0 24px 24px 24px', boxSizing: 'border-box' }}>
+        {/* Tooltip area (left) */}
+        <div style={{ width: '50%', minWidth: 300, height: '100%', background: '#fff', borderRadius: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box', padding: '28px 30px', fontSize: 16, color: '#222', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ fontWeight: 500, marginBottom: 8 }}>Tooltip for when we select an element (currently, only genes)</div>
+          {hoveredGene ? (
+            <div style={{ fontSize: 18, marginTop: 16, lineHeight: 1.7 }}>
+              <div><b>Name:</b> {hoveredGene.name}</div>
+              <div><b>Start:</b> {numberWithCommas(hoveredGene.start)}</div>
+              <div><b>End:</b> {numberWithCommas(hoveredGene.end)}</div>
+              <div><b>Strand:</b> {hoveredGene.strand}</div>
+            </div>
+          ) : (
+            <div style={{ color: '#888', marginTop: 16 }}>Hover over a gene to see its details here.</div>
+          )}
+        </div>
+        {/* Chatbot area (right) */}
+        <div style={{ width: '50%', minWidth: 300, height: '100%', background: '#fff', borderRadius: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box', padding: '28px 30px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ fontWeight: 500, marginBottom: 8 }}>ChatBot</div>
+          {/* Chat UI here */}
+        </div>
+      </div>
     </div>
   );
 }

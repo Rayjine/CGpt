@@ -1,4 +1,7 @@
 visualizer/data/*
 __pycache__/
 *.pyc
+
+.DS_Store
+.vscode
 .ipynb_checkpoints/
