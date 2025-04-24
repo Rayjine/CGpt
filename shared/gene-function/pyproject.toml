@@ -16,4 +16,5 @@ dependencies = [
     "bio>=1.6.2",
     "unipressed>=1.4.0",
     "bcbio-nextgen>=1.1.5",
+    "bcbio-gff>=0.7.1",
 ]

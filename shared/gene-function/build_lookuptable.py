@@ -77,3 +77,20 @@ def gene_dict(dna_file,gff_file,protein_file=None, Uniport = False):
                         
     return pd.DataFrame(genome_dict)
 
+if __name__ == "__main__":
+
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Create a gene lookup table from genome files.")
+    parser.add_argument("--dna_file", help="Path to the DNA FASTA file.")
+    parser.add_argument("--gff_file", help="Path to the GFF file.")
+    parser.add_argument("--output_file", help="Path to the output CSV file.")
+    parser.add_argument("--protein_file", help="Path to the protein FASTA file.", default=None)
+    parser.add_argument("--uniprot", action='store_true', help="Include UniProt IDs in the output.")
+
+    args = parser.parse_args()
+
+    df = gene_dict(args.dna_file, args.gff_file, args.protein_file, args.uniprot)
+    df.to_csv(args.output_file, index=False)
+    print(f"Lookup table saved to {args.output_file}")
+
