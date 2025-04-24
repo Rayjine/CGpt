@@ -9,7 +9,7 @@ from logging import log
 
 filterwarnings("ignore", category=UserWarning)
 
-from build_lookuptable import gene_dict
+from utils.genes_annotations import*
 
 
 def select_chromosome_chunks(input_file, output_dir, chr_id, chunk_size=800):
@@ -79,65 +79,6 @@ def select_chromosome_chunks(input_file, output_dir, chr_id, chunk_size=800):
         save_chunk(chunk, file_count)
     print(f"{gene_count} genes detected in chromosome {chr_id}.")
 
-def filter_genes_annotations(chunk_files, output_file, threshold=0.6):
-
-    processed_files = []
-    for input_file in chunk_files:
-        df = pd.read_csv(input_file, sep="\t")
-
-        # Extract gene location from file
-        df_metadata = df[df['type'] == 'original_DE']
-        df_metadata[['chromosome', 'start', 'end']] = (
-            df_metadata['desc']
-            .str.split(":", expand=True)
-            .iloc[:, 2:5])
-
-        # Add gene location to the main dataframe
-        df = df.merge(df_metadata[['qpid', 'chromosome', 'start', 'end']], on='qpid')
-        df = df[df['type'].isin(['CC_ARGOT', 'BP_ARGOT', 'MF_ARGOT'])]
-        df['type'] = df['type'].map({
-            'CC_ARGOT': 'cellular_component',
-            'BP_ARGOT': 'biological_process',
-            'MF_ARGOT': 'molecular_function',
-        })
-        df['PPV'] = df['PPV'].astype(float)
-        df = df[df['PPV'] >= threshold]
-        df['id'] = df['id'].apply(lambda x: 'GO:' + str(x))
-
-        # Final formatting
-        processed_files.append(df[['qpid', 'type', 'PPV', 'id', 'chromosome', 'start', 'end', 'desc']].rename(columns={'qpid': 'gene_id'}))
-
-    pd.concat(processed_files).to_csv(output_file, sep="\t", index=False)
-
-    
-
-def compute_genes_functions(input_files, output_dir, output_file, specie=None, **kwargs):
-
-    os.makedirs(output_dir, exist_ok=True)
-    chunks_files = []
-
-    for file in tqdm(input_files):
-        file_id = file.split("/")[-1].split("_")[0]
-        command = [
-            "python", "SANSPANZ.3/runsanspanz.py",
-            "-R",
-            "-o", f'",,,{output_dir}/{file_id}_{output_file}.out"',
-            f'-s "{specie}"' if specie else "",
-            "<", file
-        ]
-
-        try : 
-            subprocess.run(" ".join(command), shell=True, check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"Error processing file {file}: {e}")
-            return 
-        chunks_files.append(f"{output_dir}/{file_id}_{output_file}.out")
-
-    filter_genes_annotations(chunks_files,\
-                            f"{output_dir}/{output_file}_filtered.out")
-
-
-
 if __name__ == "__main__":
 
     parser = ArgumentParser(description="Gene function prediction")
@@ -162,13 +103,19 @@ if __name__ == "__main__":
         "-v", "--verbose", action="store_true", default=False,
         help="Verbose mode"
     )
+
+    parser.add_argument(
+        "-c", "--chromosome", type=int, default=1,
+        help="Chromosome to process"
+    )
+
     args = parser.parse_args()
 
     
     if args.verbose :
         print("Parsing pept fasta file")
     chunks_paths = os.path.join(args.output_dir, "chunks")
-    select_chromosome_chunks(args.input_file, chunks_paths, 1, chunk_size=800)
+    select_chromosome_chunks(args.input_file, chunks_paths, args.chromosome, chunk_size=3)
 
     if args.verbose :
         print("Computing gene functions")
