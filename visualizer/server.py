@@ -51,7 +51,7 @@ def parse_attributes(attributes_str):
             attrs[k] = v[0]
 
     # Only keep 'gbkey' and 'gene_biotype'
-    return {key: attrs[key] for key in ("gbkey", "gene_biotype") if key in attrs}
+    return attrs
 
 
 # Helper function to get DB connection or abort

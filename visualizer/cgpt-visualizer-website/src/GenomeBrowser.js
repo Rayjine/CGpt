@@ -51,7 +51,7 @@ function debounce(func, wait) {
 // Add a simple throttle function
 function throttle(func, limit) {
   let inThrottle;
-  return function(...args) {
+  return function (...args) {
     if (!inThrottle) {
       func(...args);
       inThrottle = true;
@@ -149,9 +149,9 @@ function GenomeBrowser({ genes }) {
     const bufferAmount = (end - start) * buffer;
     const visibleStart = Math.max(0, start - bufferAmount);
     const visibleEnd = end + bufferAmount;
-    
+
     // Filter genes that are visible in the current zoom region (with buffer)
-    return genes.filter(gene => 
+    return genes.filter(gene =>
       (gene.start <= visibleEnd && gene.end >= visibleStart)
     );
   });
@@ -249,7 +249,7 @@ function GenomeBrowser({ genes }) {
       .attr('width', availableWidth)
       .attr('height', overviewHeight)
       .style('background', '#f8f8fa')
-      .on('click', function(event) {
+      .on('click', function (event) {
         // Only clear selection if click is on the SVG background
         if (event.target === this) setSelectedGene(null);
       });
@@ -390,7 +390,7 @@ function GenomeBrowser({ genes }) {
       .attr('width', availableWidth)
       .attr('height', detailHeight + 40)
       .style('background', '#fff')
-      .on('click', function(event) {
+      .on('click', function (event) {
         if (event.target === this) setSelectedGene(null);
       });
     // Scales
@@ -858,23 +858,23 @@ function GenomeBrowser({ genes }) {
   // Draw X-shaped chromosome whenever genes or selectedGene changes
   useEffect(() => {
     if (!xChromosomeRef.current) return;
-    
+
     const drawXChromosome = () => {
       const containerWidth = xChromosomeRef.current.parentElement.clientWidth - 60; // Account for padding
       const containerHeight = 320; // Fixed height for X chromosome
-      
+
       // Remove previous visualization
       d3.select(xChromosomeRef.current).selectAll('*').remove();
-      
+
       // Create SVG container
       const svg = d3.select(xChromosomeRef.current)
         .attr('width', containerWidth)
         .attr('height', containerHeight)
         .style('border-radius', '12px')
-        .on('click', function(event) {
+        .on('click', function (event) {
           if (event.target === this) setSelectedGene(null);
         });
-      
+
       // --- NEW: Draw X chromosome as two mirrored curves ---
       // y = ln(x/(1-x)), y = -ln(x/(1-x)), x in (0,1)
       // We'll sample x in [0.01, 0.99] to avoid infinity at endpoints
@@ -1003,16 +1003,16 @@ function GenomeBrowser({ genes }) {
           });
       }
     };
-    
+
     drawXChromosome();
-    
+
     // Add resize listener for responsive design
     const handleResize = () => {
       drawXChromosome();
     };
-    
+
     window.addEventListener('resize', handleResize);
-    
+
     return () => {
       window.removeEventListener('resize', handleResize);
     };
@@ -1046,25 +1046,25 @@ function GenomeBrowser({ genes }) {
 
   function handlePositionSubmit(e) {
     e.preventDefault();
-    
+
     // Parse values and handle invalid input
     let start = parseInt(editableStart.replace(/,/g, ''));
     let end = parseInt(editableEnd.replace(/,/g, ''));
-    
+
     // Validate inputs
     if (isNaN(start)) start = regionStart;
     if (isNaN(end)) end = regionEnd;
-    
+
     // Ensure start < end
     if (start > end) [start, end] = [end, start];
-    
+
     // Enforce boundaries
     start = Math.max(0, Math.min(realChromosome.length, start));
     end = Math.max(0, Math.min(realChromosome.length, end));
-    
+
     // Ensure minimum visible region (at least 10bp)
     if (end - start < 10) end = Math.min(realChromosome.length, start + 10);
-    
+
     // Apply the new zoom region
     setZoomRegion([start, end]);
   }
@@ -1139,9 +1139,9 @@ function GenomeBrowser({ genes }) {
           borderTopLeftRadius: 18,
           borderTopRightRadius: 18
         }}>
-          <span style={{fontSize: 14}}>Chr: <b>{realChromosome.name}</b></span>
-          <span style={{fontSize: 14}}>Length: <b>{numberWithCommas(realChromosome.length)} bp</b></span>
-          <span style={{fontSize: 14}}>Genes: <b>{geneCount}</b></span>
+          <span style={{ fontSize: 14 }}>Chr: <b>{realChromosome.name}</b></span>
+          <span style={{ fontSize: 14 }}>Length: <b>{numberWithCommas(realChromosome.length)} bp</b></span>
+          <span style={{ fontSize: 14 }}>Genes: <b>{geneCount}</b></span>
           {/* --- GENE SEARCH BAR --- */}
           <form
             onSubmit={e => { e.preventDefault(); /* Placeholder for search logic */ }}
@@ -1163,7 +1163,7 @@ function GenomeBrowser({ genes }) {
                 marginRight: 2
               }}
               disabled={false}
-              // value and onChange will be implemented with backend
+            // value and onChange will be implemented with backend
             />
             <button
               type="submit"
@@ -1217,11 +1217,11 @@ function GenomeBrowser({ genes }) {
             }}
           >Reset View</button>
           {/* --- EDITABLE VIEW RANGE INPUTS --- */}
-          <form 
-            onSubmit={handlePositionSubmit} 
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
+          <form
+            onSubmit={handlePositionSubmit}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
               gap: 3,
               marginLeft: 0,
               fontSize: 13,
@@ -1258,7 +1258,7 @@ function GenomeBrowser({ genes }) {
               title="End position (bp)"
             />
             <span>bp ({numberWithCommas(regionBp)} bp)</span>
-            <button 
+            <button
               type="submit"
               style={{
                 background: 'transparent',
@@ -1304,12 +1304,8 @@ function GenomeBrowser({ genes }) {
               <div><b>Start:</b> {numberWithCommas((selectedGene || hoveredGene).start)}</div>
               <div><b>End:</b> {numberWithCommas((selectedGene || hoveredGene).end)}</div>
               <div><b>Strand:</b> {(selectedGene || hoveredGene).strand}</div>
-              <br />
-              <div style={{ width: '50%', margin: '0 auto' }}><b>Attributes:</b> <ul style={{ margin: 0, paddingLeft: 16, textAlign: 'left' }}>
-                {Object.entries((selectedGene || hoveredGene).attributes).map(([key, value]) => (
-                  <li key={key}><b>{key}:</b> {value}</li>
-                ))}
-              </ul></div>
+              <div><b>GenBank key:</b> {(selectedGene || hoveredGene).attributes['gbkey']}</div>
+              <div><b>Gene Biotype:</b> {(selectedGene || hoveredGene).attributes['gene_biotype']}</div>
               {selectedGene && (
                 <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
                   (Gene is selected. Click elsewhere to deselect.)
