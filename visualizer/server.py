@@ -41,12 +41,6 @@ def parse_attributes(attributes_str):
     return attributes
 
 
-def get_gene_name(attrs):
-    """Extracts gene name from parsed attributes, prioritizing 'Name', then 'gene'."""
-    # Add more fallbacks if needed (e.g., 'locus_tag')
-    return attrs.get("Name", attrs.get("gene", attrs.get("locus_tag", "UnknownGene")))
-
-
 # Helper function to get DB connection or abort
 def get_db_connection(chromosome_id):
     """Gets DB path and checks existence, aborts on failure."""
@@ -86,15 +80,13 @@ def get_all_genes_for_chromosome():
 
         for row in cursor.fetchall():
             attributes = parse_attributes(row["attributes"])
-            gene_name = get_gene_name(attributes)
             genes.append(
                 {
                     "id": row["id"],  # Include the feature ID
-                    "name": gene_name,
                     "start": row["start"],
                     "end": row["end"],
                     "strand": row["strand"],
-                    # Add 'attributes': attributes if needed by frontend
+                    "attributes": attributes,
                 }
             )
         conn.close()
@@ -137,14 +129,12 @@ def get_specific_gene(feature_id):
 
         if row:
             attributes = parse_attributes(row["attributes"])
-            gene_name = get_gene_name(attributes)
             gene_data = {
                 "id": row["id"],
-                "name": gene_name,
                 "start": row["start"],
                 "end": row["end"],
                 "strand": row["strand"],
-                # Add 'attributes': attributes if needed
+                "attributes": attributes,
             }
             print(f"Found gene {feature_id} for {chromosome_id} in {db_path}")
             return jsonify(gene_data)

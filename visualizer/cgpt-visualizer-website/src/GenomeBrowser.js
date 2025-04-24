@@ -497,7 +497,7 @@ function GenomeBrowser({ genes }) {
       .attr('text-anchor', 'middle')
       .attr('alignment-baseline', 'hanging')
       .attr('clip-path', 'url(#detail-clip)')
-      .text((d, i) => xDetail(d.end) - xDetail(d.start) > 20 ? d.name : '');
+      .text((d, i) => xDetail(d.end) - xDetail(d.start) > 20 ? d.id : '');
     detailSvg.selectAll('.gene-label-minus')
       .data(minusGenes)
       .enter()
@@ -510,7 +510,7 @@ function GenomeBrowser({ genes }) {
       .attr('text-anchor', 'middle')
       .attr('alignment-baseline', 'hanging')
       .attr('clip-path', 'url(#detail-clip)')
-      .text((d, i) => xDetail(d.end) - xDetail(d.start) > 20 ? d.name : '');
+      .text((d, i) => xDetail(d.end) - xDetail(d.start) > 20 ? d.id : '');
 
     // --- DNA LETTERS (when zoomed in enough) ---
     const bpPerPixel = (zoomRegion[1] - zoomRegion[0]) / (availableWidth - margin.left - margin.right);
@@ -792,6 +792,15 @@ function GenomeBrowser({ genes }) {
     }
   }
 
+  useEffect(() => {
+    // Only reset if genes are loaded and zoomRef is initialized
+    if (genes && genes.length > 0 && zoomRef.current) {
+      setZoomRegion([0, realChromosome.length]);
+      d3.select(detailRef.current).transition().duration(300).call(zoomRef.current.transform, d3.zoomIdentity);
+    }
+    // eslint-disable-next-line
+  }, [genes]);
+
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', margin: 0, padding: 0, background: '#f0f4fa', display: 'flex', flexDirection: 'column' }}>
       {/* Top section: Info bar + Genome browser, visually carded */}
@@ -884,10 +893,18 @@ function GenomeBrowser({ genes }) {
           <div style={{ fontWeight: 500, marginBottom: 8 }}>Tooltip for when we select an element (currently, only genes)</div>
           {(selectedGene || hoveredGene) ? (
             <div style={{ fontSize: 18, marginTop: 16, lineHeight: 1.7 }}>
-              <div><b>Name:</b> {(selectedGene || hoveredGene).name}</div>
+              <div><b>ID:</b> {(selectedGene || hoveredGene).id}</div>
               <div><b>Start:</b> {numberWithCommas((selectedGene || hoveredGene).start)}</div>
               <div><b>End:</b> {numberWithCommas((selectedGene || hoveredGene).end)}</div>
               <div><b>Strand:</b> {(selectedGene || hoveredGene).strand}</div>
+              <div>
+                <b>Attributes:</b> {JSON.stringify((selectedGene || hoveredGene).attributes)}
+              </div>
+              {/* <div><b>Attributes:</b> <ul style={{ margin: 0, paddingLeft: 16 }}>
+                {Object.entries((selectedGene || hoveredGene).attributes).map(([key, value]) => (
+                  <li key={key}><b>{key}:</b> {value}</li>
+                ))}
+              </ul></div> */}
               {selectedGene && (
                 <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
                   (Gene is selected. Click elsewhere to deselect.)
