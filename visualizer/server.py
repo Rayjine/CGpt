@@ -6,7 +6,13 @@ from flask_cors import CORS
 # --- Configuration ---
 # Adjust this path if your DB files are located elsewhere relative to server.py
 DB_BASE_DIR = os.path.join(
-    os.path.dirname(__file__), "data", "data", "GCF_014441545.1", "chromosomes_db"
+    os.path.dirname(__file__),
+    "data",
+    "ncbi_dataset",
+    "ncbi_dataset",
+    "data",
+    "GCF_014441545.1",
+    "chromosomes_db",
 )
 # --- End Configuration ---
 
