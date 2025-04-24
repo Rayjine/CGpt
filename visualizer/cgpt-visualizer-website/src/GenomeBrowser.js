@@ -897,14 +897,12 @@ function GenomeBrowser({ genes }) {
               <div><b>Start:</b> {numberWithCommas((selectedGene || hoveredGene).start)}</div>
               <div><b>End:</b> {numberWithCommas((selectedGene || hoveredGene).end)}</div>
               <div><b>Strand:</b> {(selectedGene || hoveredGene).strand}</div>
-              <div>
-                <b>Attributes:</b> {JSON.stringify((selectedGene || hoveredGene).attributes)}
-              </div>
-              {/* <div><b>Attributes:</b> <ul style={{ margin: 0, paddingLeft: 16 }}>
+              <br />
+              <div style={{ width: '50%', margin: '0 auto' }}><b>Attributes:</b> <ul style={{ margin: 0, paddingLeft: 16, textAlign: 'left' }}>
                 {Object.entries((selectedGene || hoveredGene).attributes).map(([key, value]) => (
                   <li key={key}><b>{key}:</b> {value}</li>
                 ))}
-              </ul></div> */}
+              </ul></div>
               {selectedGene && (
                 <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
                   (Gene is selected. Click elsewhere to deselect.)

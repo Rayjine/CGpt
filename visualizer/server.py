@@ -2,6 +2,7 @@ import os
 import sqlite3
 from flask import Flask, jsonify, abort, request
 from flask_cors import CORS
+import json
 
 # --- Configuration ---
 # Adjust this path if your DB files are located elsewhere relative to server.py
@@ -21,24 +22,29 @@ CORS(app)  # Allow requests from other origins (like your React dev server)
 
 
 def parse_attributes(attributes_str):
-    """Parses GFF/GTF style attributes string into a dictionary."""
-    attributes = {}
+    """
+    Parses attributes which may be a JSON string (from NCBI GFF/JSON) or already a dict.
+    Returns a dict with only 'gbkey' and 'gene_biotype' keys if present.
+    """
     if not attributes_str:
-        return attributes
-    # Handle potential variations in separators and quoting
-    parts = attributes_str.strip(";").split(";")
-    for part in parts:
-        part = part.strip()
-        if "=" in part:
-            try:
-                key, value = part.split("=", 1)
-                # Remove potential surrounding quotes and whitespace
-                attributes[key.strip()] = value.strip().strip("\"'")
-            except ValueError:
-                # Handle cases where a part might not be a key=value pair correctly
-                print(f"Warning: Could not parse attribute part: {part}")
-                attributes[part] = None  # Or skip, depending on desired behavior
-    return attributes
+        return {}
+
+    # Parse to dict
+    if isinstance(attributes_str, dict):
+        attrs = attributes_str
+    else:
+        try:
+            attrs = json.loads(attributes_str)
+        except Exception:
+            attrs = {}
+
+    # Flatten single-element lists to values
+    for k, v in list(attrs.items()):
+        if isinstance(v, list) and len(v) == 1:
+            attrs[k] = v[0]
+
+    # Only keep 'gbkey' and 'gene_biotype'
+    return {key: attrs[key] for key in ("gbkey", "gene_biotype") if key in attrs}
 
 
 # Helper function to get DB connection or abort
