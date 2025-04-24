@@ -36,6 +36,8 @@ function numberWithCommas(x) {
 }
 
 function GenomeBrowser({ genes }) {
+  realChromosome.genes = genes;
+
   const overviewRef = useRef();
   const detailRef = useRef();
   const zoomRef = useRef();
