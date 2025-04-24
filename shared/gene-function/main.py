@@ -1,13 +1,15 @@
-from logging import log
-from typing import List
-import subprocess
-from argparse import ArgumentParser
-import pandas as pd
 import os
-
+import subprocess
+import pandas as pd
+from argparse import ArgumentParser
+from typing import List
+from warnings import filterwarnings
 from tqdm import tqdm
+from logging import log
 
+filterwarnings("ignore", category=UserWarning)
 
+from build_lookuptable import gene_dict
 
 
 def select_chromosome_chunks(input_file, output_dir, chr_id, chunk_size=800):
@@ -37,7 +39,6 @@ def select_chromosome_chunks(input_file, output_dir, chr_id, chunk_size=800):
         )
     """
 
-    # ENSCAFP00845004867.1
     os.makedirs(output_dir, exist_ok=True)
 
     gene_count = 0
@@ -54,9 +55,13 @@ def select_chromosome_chunks(input_file, output_dir, chr_id, chunk_size=800):
     with open(input_file, "r") as f:
         keep = False
         for line in tqdm(f):
-            if line.startswith(">") and not f"ROS_Cfam_1.0:{int(chr_id)}:" in line:
+            # Causing errors
+            if 'ENSCAFP00845004848.1' in line or 'ENSCAFP00845004853.1' in line:
+                continue
+            elif line.startswith(">") and not f"ROS_Cfam_1.0:{int(chr_id)}:" in line:
                 keep = False
-            if line.startswith(">") and f"ROS_Cfam_1.0:{int(chr_id)}:" in line:
+            # Gene from chr of interest
+            elif line.startswith(">") and f"ROS_Cfam_1.0:{int(chr_id)}:" in line:
                 # New gene starts — flush to chunk if needed
                 if gene_count > 0 and gene_count % chunk_size == 0:
                     save_chunk(chunk, file_count)
@@ -79,7 +84,6 @@ def filter_genes_annotations(chunk_files, output_file, threshold=0.6):
     processed_files = []
     for input_file in chunk_files:
         df = pd.read_csv(input_file, sep="\t")
-        print("Input file: ", input_file)
 
         # Extract gene location from file
         df_metadata = df[df['type'] == 'original_DE']
@@ -102,6 +106,7 @@ def filter_genes_annotations(chunk_files, output_file, threshold=0.6):
 
         # Final formatting
         processed_files.append(df[['qpid', 'type', 'PPV', 'id', 'chromosome', 'start', 'end', 'desc']].rename(columns={'qpid': 'gene_id'}))
+
     pd.concat(processed_files).to_csv(output_file, sep="\t", index=False)
 
     

@@ -13,4 +13,7 @@ dependencies = [
     "ipykernel>=6.29.5",
     "jupyter>=1.1.1",
     "tqdm>=4.67.1",
+    "bio>=1.6.2",
+    "unipressed>=1.4.0",
+    "bcbio-nextgen>=1.1.5",
 ]
