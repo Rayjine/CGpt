@@ -61,6 +61,54 @@ function throttle(func, limit) {
 }
 
 function GenomeBrowser({ genes }) {
+  // --- Autocomplete search state ---
+  const [searchInput, setSearchInput] = useState("");
+  const [suggestions, setSuggestions] = useState({ gene_ids: [], descriptions: [] });
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Debounced fetch for autocomplete
+  useEffect(() => {
+    if (!searchInput) {
+      setSuggestions({ gene_ids: [], descriptions: [] });
+      return;
+    }
+    const fetchSuggestions = debounce(async (query) => {
+      try {
+        const res = await fetch(`http://localhost:5001/api/v1/search/autocomplete?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        setSuggestions(data);
+      } catch (err) {
+        setSuggestions({ gene_ids: [], descriptions: [] });
+      }
+    }, 200);
+    fetchSuggestions(searchInput);
+    // eslint-disable-next-line
+  }, [searchInput]);
+
+  function handleSearchInputChange(e) {
+    setSearchInput(e.target.value);
+    setShowSuggestions(true);
+  }
+
+  function handleSuggestionSelect(suggestion) {
+    setSearchInput(suggestion.type === 'gene_id' ? suggestion.value : suggestion.value);
+    setShowSuggestions(false);
+    if (suggestion.type === 'gene_id') {
+      // Find and select the gene
+      const gene = genes.find(g => g.id === suggestion.value);
+      if (gene) {
+        setSelectedGene(gene);
+        // Optionally zoom to gene
+        setZoomRegion([gene.start, gene.end]);
+      }
+    } else if (suggestion.type === 'desc_keyword') {
+      // For now, just log. You could display a modal or list of genes.
+      // eslint-disable-next-line no-console
+      console.log('Genes for keyword', suggestion.value, suggestion.genes);
+      // Optionally: highlight all genes with this keyword, or show a modal
+    }
+  }
+
   function MostProbableAnnotationDisplay({ gene, chromosome }) {
     const [annotation, setAnnotation] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -1107,10 +1155,11 @@ function GenomeBrowser({ genes }) {
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', margin: 0, padding: 0, background: '#f0f4fa', display: 'flex', flexDirection: 'column' }}>
-      {/* Top section: Info bar + Genome browser, visually carded */}
+
+      {/* Main info bar + Genome browser, visually carded */}
       <div style={{
         width: 'calc(100% - 48px)',
-        height: '320px',
+        height: '260px',
         minHeight: 260,
         margin: '24px auto 12px auto',
         background: '#fff',
@@ -1142,50 +1191,113 @@ function GenomeBrowser({ genes }) {
           <span style={{ fontSize: 14 }}>Chr: <b>{realChromosome.name}</b></span>
           <span style={{ fontSize: 14 }}>Length: <b>{numberWithCommas(realChromosome.length)} bp</b></span>
           <span style={{ fontSize: 14 }}>Genes: <b>{geneCount}</b></span>
-          {/* --- GENE SEARCH BAR --- */}
-          <form
-            onSubmit={e => { e.preventDefault(); /* Placeholder for search logic */ }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 120 }}
-            autoComplete="off"
-          >
-            <input
-              type="text"
-              placeholder="Search gene..."
-              style={{
-                fontSize: 13,
-                padding: '4px 8px',
-                borderRadius: 6,
-                border: '1px solid #ddd',
-                background: '#f8f8fa',
-                outline: 'none',
-                width: 100,
-                transition: 'border 0.2s',
-                marginRight: 2
-              }}
-              disabled={false}
-            // value and onChange will be implemented with backend
-            />
-            <button
-              type="submit"
-              style={{
-                background: '#3b82f6',
-                border: 'none',
-                borderRadius: '50%',
-                width: 26,
-                height: 26,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontSize: 15,
-                cursor: 'pointer',
-                opacity: 0.85
-              }}
-              title="Search"
+          {/* --- GENE SEARCH BAR WITH AUTOCOMPLETE --- */}
+          <div style={{ position: 'relative', width: '100%' }}>
+            <form
+              onSubmit={e => { e.preventDefault(); /* Placeholder for search logic */ }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '6px 12px', marginLeft: 18, minWidth: 280, maxWidth: 340 }}
+              autoComplete="off"
             >
-              <span role="img" aria-label="search">🔍</span>
-            </button>
-          </form>
+              <input
+                type="text"
+                placeholder="Search gene..."
+                value={searchInput}
+                onChange={handleSearchInputChange}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                style={{
+                  fontSize: 13,
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  border: '1px solid #ddd',
+                  background: '#f8f8fa',
+                  outline: 'none',
+                  width: 380,
+                  transition: 'border 0.2s',
+                  marginRight: 2
+                }}
+                autoComplete="off"
+              />
+              <button
+                type="submit"
+                style={{
+                  background: '#3b82f6',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: 26,
+                  height: 26,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: 15,
+                  cursor: 'pointer',
+                  opacity: 0.85
+                }}
+                title="Search"
+              >
+                <span role="img" aria-label="search">🔍</span>
+              </button>
+            </form>
+            {/* Autocomplete dropdown */}
+            {showSuggestions && (suggestions.gene_ids.length > 0 || suggestions.descriptions.length > 0) && (
+              <div style={{
+                position: 'absolute',
+                top: 42,
+                left: 0,
+                width: '100%',
+                background: '#fff',
+                border: '1px solid #e1e6ee',
+                borderRadius: 8,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.09)',
+                zIndex: 100,
+                maxHeight: 260,
+                overflowY: 'auto',
+                padding: '6px 0',
+              }}>
+                {/* Gene ID Suggestions */}
+                {suggestions.gene_ids.length > 0 && (
+                  <div style={{ padding: '2px 12px 2px 12px' }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: '#555', marginBottom: 2 }}>Gene IDs</div>
+                    {suggestions.gene_ids.map((id, idx) => (
+                      <div
+                        key={id}
+                        style={{
+                          padding: '6px 0',
+                          cursor: 'pointer',
+                          borderBottom: idx === suggestions.gene_ids.length - 1 && suggestions.descriptions.length === 0 ? 'none' : '1px solid #f3f3f3',
+                          color: '#2d4b7c',
+                        }}
+                        onMouseDown={() => handleSuggestionSelect({ type: 'gene_id', value: id })}
+                      >
+                        {id}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Description Keyword Suggestions */}
+                {suggestions.descriptions.length > 0 && (
+                  <div style={{ padding: '2px 12px 2px 12px' }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: '#555', margin: '8px 0 2px 0' }}>Description Keywords</div>
+                    {suggestions.descriptions.map((desc, idx) => (
+                      <div
+                        key={desc.keyword}
+                        style={{
+                          padding: '6px 0',
+                          cursor: 'pointer',
+                          borderBottom: idx === suggestions.descriptions.length - 1 ? 'none' : '1px solid #f3f3f3',
+                          color: '#5c2d7c',
+                        }}
+                        onMouseDown={() => handleSuggestionSelect({ type: 'desc_keyword', value: desc.keyword, genes: desc.genes })}
+                      >
+                        {desc.keyword} <span style={{ color: '#aaa', fontSize: 12 }}>({desc.genes.length} genes)</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           {/* --- ZOOM BAR TOOL --- */}
           <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 120 }}>
             <label htmlFor="zoom-bar" style={{ fontSize: 13 }}>Zoom:</label>
@@ -1278,9 +1390,9 @@ function GenomeBrowser({ genes }) {
           </form>
         </div>
         {/* Genome SVGs */}
-        <div style={{ width: '100%', height: 'calc(100% - 64px)', background: '#fff', borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
-          <svg ref={overviewRef} style={{ display: 'block', width: '100%' }} />
-          <svg ref={detailRef} style={{ display: 'block', width: '100%' }} />
+        <div style={{ width: '100%', height: '60%', background: '#fff', borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
+          <svg ref={overviewRef} style={{ display: 'block', width: '100%', height: 80 }} />
+          <svg ref={detailRef} style={{ display: 'block', width: '100%', height: 100 }} />
         </div>
       </div>
       {/* Bottom section: Left Panel + Tooltip + Chatbot visually carded */}

@@ -1,9 +1,11 @@
-import os
-import sqlite3
-from flask import Flask, jsonify, abort, request
-from flask_cors import CORS
 import json
 import logging
+import os
+import sqlite3
+
+from flask import Flask, abort, jsonify, request
+from flask_cors import CORS
+from search_routes import DB_BASE_DIR, search_bp
 
 # Configure logging
 logging.basicConfig(
@@ -13,18 +15,13 @@ logging.basicConfig(
 
 # --- Configuration ---
 # Adjust this path if your DB files are located elsewhere relative to server.py
-DB_BASE_DIR = os.path.join(
-    os.path.dirname(__file__),
-    "data",
-    "ncbi_dataset",
-    "ncbi_dataset",
-    "data",
-    "GCF_014441545.1",
-    "chromosomes_db",
-)
+
 # --- End Configuration ---
 
 app = Flask(__name__)
+
+# Register blueprint for search/autocomplete
+app.register_blueprint(search_bp)
 CORS(app)  # Allow requests from other origins (like your React dev server)
 
 
