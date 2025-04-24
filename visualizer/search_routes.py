@@ -34,11 +34,11 @@ def build_desc_keyword_index():
     conn = sqlite3.connect(ANNOT_DB_PATH)
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT id, desc FROM annotations")
-        for gene_id, desc in cursor.fetchall():
+        cursor.execute("SELECT Gene_name, desc FROM annotations")
+        for gene_name, desc in cursor.fetchall():
             if desc:
                 for word in desc.lower().split():
-                    desc_keyword_index[word].add(gene_id)
+                    desc_keyword_index[word].add(gene_name)
     finally:
         conn.close()
 
@@ -72,3 +72,13 @@ def autocomplete():
     ]
 
     return jsonify({"gene_ids": top_gene_ids, "descriptions": desc_matches})
+
+
+@search_bp.route("/api/v1/search/genes_by_keyword", methods=["GET"])
+def genes_by_keyword():
+    keyword = request.args.get("keyword", "").strip().lower()
+    if not keyword:
+        return jsonify({"keyword": keyword, "gene_ids": []})
+
+    gene_ids = list(desc_keyword_index.get(keyword, []))
+    return jsonify({"keyword": keyword, "gene_ids": gene_ids})

@@ -61,7 +61,12 @@ function throttle(func, limit) {
   };
 }
 
+
+
 function GenomeBrowser({ genes }) {
+  // --- New: Keyword search state ---
+
+
   // --- Autocomplete search state ---
   const [searchInput, setSearchInput] = useState("");
   const [suggestions, setSuggestions] = useState({ gene_ids: [], descriptions: [] });
@@ -90,6 +95,37 @@ function GenomeBrowser({ genes }) {
     setSearchInput(e.target.value);
     setShowSuggestions(true);
   }
+
+  // --- New: Keyword search handler ---
+  async function handleKeywordSearch(e) {
+    console.log("handleKeywordSearch");
+    e.preventDefault();
+    try {
+      console.log("Fetching gene IDs for keyword: ", searchInput);
+      console.log("Encoded keyword: ", encodeURIComponent(searchInput));
+      const res = await fetch(`http://localhost:5001/api/v1/search/genes_by_keyword?keyword=${encodeURIComponent(searchInput)}`);
+      if (!res.ok) throw new Error("Failed to fetch gene IDs for keyword");
+      const data = await res.json();
+      console.log(data);
+      if (data.gene_ids && data.gene_ids.length > 0) {
+        // Find all matching genes in the current gene list
+        const matches = genes.filter(g => data.gene_ids.includes(g.id));
+        setSelectedGenes(matches);
+        setShowSuggestions(false);
+        if (matches.length) {
+          const minStart = Math.min(...matches.map(g => g.start));
+          const maxEnd = Math.max(...matches.map(g => g.end));
+          setZoomRegion([minStart, maxEnd]);
+        }
+      } else {
+        setSelectedGenes([]);
+      }
+    } catch (err) {
+      setSelectedGenes([]);
+    }
+  }
+
+
 
   function handleSuggestionSelect(suggestion) {
     setSearchInput(suggestion.value);
@@ -122,7 +158,7 @@ function GenomeBrowser({ genes }) {
     const [error, setError] = useState(null);
 
     const chromosomeName = chromosome.name;
-    const geneName = gene.id.replace(/^gene-/, '');
+    const geneName = gene.id;
 
     useEffect(() => {
       if (!gene) {
@@ -171,6 +207,9 @@ function GenomeBrowser({ genes }) {
   }
 
   realChromosome.genes = genes;
+
+  // --- UI for search bar and new keyword search ---
+  // Remove this early return and move its JSX into the main render block at the top.
 
   const overviewRef = useRef();
   const detailRef = useRef();
@@ -1267,7 +1306,7 @@ function GenomeBrowser({ genes }) {
           {/* --- GENE SEARCH BAR WITH AUTOCOMPLETE --- */}
           <div style={{ position: 'relative', width: '100%' }}>
             <form
-              onSubmit={e => { e.preventDefault(); /* Placeholder for search logic */ }}
+              onSubmit={handleKeywordSearch}
               style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '6px 12px', marginLeft: 18, minWidth: 280, maxWidth: 340 }}
               autoComplete="off"
             >
@@ -1485,7 +1524,7 @@ function GenomeBrowser({ genes }) {
           <div style={{ fontWeight: 500, marginBottom: 8 }}>Tooltip for when we select an element (currently, only genes)</div>
           {hoveredGene ? (
             <div style={{ fontSize: 18, marginTop: 16, lineHeight: 1.7 }}>
-              <div><b>ID:</b> {hoveredGene.id.replace(/^gene-/, '')}</div>
+              <div><b>ID:</b> {hoveredGene.id}</div>
               <div><b>Start:</b> {numberWithCommas(hoveredGene.start)}</div>
               <div><b>End:</b> {numberWithCommas(hoveredGene.end)}</div>
               <div><b>Strand:</b> {hoveredGene.strand}</div>
@@ -1496,7 +1535,7 @@ function GenomeBrowser({ genes }) {
             <div style={{ fontSize: 18, marginTop: 16, lineHeight: 1.7 }}>
               {selectedGenes.map((gene, idx) => (
                 <div key={gene.id} style={{ marginBottom: 16 }}>
-                  <div><b>ID:</b> {gene.id.replace(/^gene-/, '')}</div>
+                  <div><b>ID:</b> {gene.id}</div>
                   <div><b>Start:</b> {numberWithCommas(gene.start)}</div>
                   <div><b>End:</b> {numberWithCommas(gene.end)}</div>
                   <div><b>Strand:</b> {gene.strand}</div>

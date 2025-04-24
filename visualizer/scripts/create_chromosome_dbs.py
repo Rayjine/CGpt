@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import argparse
+import logging
+import sqlite3
 import sys
 import time
-import gffutils
 from pathlib import Path
-import logging
+
+import gffutils
 
 # Configure logging
 logging.basicConfig(
@@ -49,6 +51,13 @@ def create_single_db(
             disable_infer_genes=True,
             disable_infer_transcripts=True,
         )
+        # In the "feature" table, remove "gene-" prefix from the "id" column
+        conn = sqlite3.connect(str(output_db_path))
+        try:
+            conn.execute("UPDATE features SET id = replace(id, 'gene-', '')")
+            conn.commit()
+        finally:
+            conn.close()
         end_time = time.time()
         logging.info(
             f"  Successfully created {output_db_path.name} in {end_time - start_time:.2f} seconds."
