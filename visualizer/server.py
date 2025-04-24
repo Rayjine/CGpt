@@ -3,9 +3,14 @@ import logging
 import os
 import sqlite3
 
+from dotenv import load_dotenv
 from flask import Flask, abort, jsonify, request
 from flask_cors import CORS
 from search_routes import DB_BASE_DIR, search_bp
+
+# Load environment variables from .env file
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+API_KEY = os.getenv("API_KEY")
 
 # Configure logging
 logging.basicConfig(

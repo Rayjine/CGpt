@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
 import chromosomeData from './data/chromosome_data.json';
+import ChatbotWidget from './ChatbotWidget';
 
 const geneColors = [
   '#3498db', '#2ecc71', '#e74c3c', '#f1c40f', '#9b59b6',
