@@ -152,6 +152,49 @@ function GenomeBrowser({ genes }) {
     }
   }
 
+  // Dropdown panel for selected genes
+  function GeneInfoDropdownPanel({ selectedGenes }) {
+    const [selectedIdx, setSelectedIdx] = useState(0);
+    const gene = selectedGenes[selectedIdx] || selectedGenes[0];
+
+    useEffect(() => {
+      // Reset dropdown if selection changes
+      setSelectedIdx(0);
+    }, [selectedGenes]);
+
+    if (!gene) return null;
+    return (
+      <div style={{ fontSize: 18, marginTop: 16, lineHeight: 1.7 }}>
+        {selectedGenes.length > 1 && (
+          <div style={{ marginBottom: 18 }}>
+            <label htmlFor="gene-select" style={{ fontSize: 15, marginRight: 8 }}>Selected gene:</label>
+            <select
+              id="gene-select"
+              value={selectedIdx}
+              onChange={e => setSelectedIdx(Number(e.target.value))}
+              style={{ fontSize: 15, padding: '4px 10px', borderRadius: 6, border: '1px solid #bbb' }}
+            >
+              {selectedGenes.map((g, i) => (
+                <option key={g.id} value={i}>{g.id}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div style={{ marginBottom: 16 }}>
+          <div><b>ID:</b> {gene.id}</div>
+          <div><b>Start:</b> {numberWithCommas(gene.start)}</div>
+          <div><b>End:</b> {numberWithCommas(gene.end)}</div>
+          <div><b>Strand:</b> {gene.strand}</div>
+          <div><b>GenBank key:</b> {gene.attributes['gbkey']}</div>
+          <div><b>Gene Biotype:</b> {gene.attributes['gene_biotype']}</div>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
+          ({selectedGenes.length} gene{selectedGenes.length > 1 ? 's are' : ' is'} selected. Click elsewhere to deselect.)
+        </div>
+      </div>
+    );
+  }
+
   function MostProbableAnnotationDisplay({ gene, chromosome }) {
     const [annotation, setAnnotation] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -1532,23 +1575,7 @@ function GenomeBrowser({ genes }) {
               <div><b>Gene Biotype:</b> {hoveredGene.attributes['gene_biotype']}</div>
             </div>
           ) : selectedGenes && selectedGenes.length > 0 ? (
-            <div style={{ fontSize: 18, marginTop: 16, lineHeight: 1.7 }}>
-              {selectedGenes.map((gene, idx) => (
-                <div key={gene.id} style={{ marginBottom: 16 }}>
-                  <div><b>ID:</b> {gene.id}</div>
-                  <div><b>Start:</b> {numberWithCommas(gene.start)}</div>
-                  <div><b>End:</b> {numberWithCommas(gene.end)}</div>
-                  <div><b>Strand:</b> {gene.strand}</div>
-                  <div><b>GenBank key:</b> {gene.attributes['gbkey']}</div>
-                  <div><b>Gene Biotype:</b> {gene.attributes['gene_biotype']}</div>
-                  <MostProbableAnnotationDisplay gene={gene} chromosome={realChromosome} />
-                  {idx < selectedGenes.length - 1 && <hr style={{ margin: '14px 0', border: 0, borderTop: '1px solid #eee' }} />}
-                </div>
-              ))}
-              <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
-                ({selectedGenes.length} gene{selectedGenes.length > 1 ? 's are' : ' is'} selected. Click elsewhere to deselect.)
-              </div>
-            </div>
+            <GeneInfoDropdownPanel selectedGenes={selectedGenes} />
           ) : (
             <div style={{ color: '#888', marginTop: 16 }}>Hover over or click a gene to see its details here.</div>
           )}
@@ -1605,5 +1632,7 @@ function GenomeBrowser({ genes }) {
     </div>
   );
 }
+
+
 
 export default GenomeBrowser;
