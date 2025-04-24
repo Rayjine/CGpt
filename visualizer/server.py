@@ -3,6 +3,13 @@ import sqlite3
 from flask import Flask, jsonify, abort, request
 from flask_cors import CORS
 import json
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
 
 # --- Configuration ---
 # Adjust this path if your DB files are located elsewhere relative to server.py
@@ -54,7 +61,7 @@ def get_db_connection(chromosome_id):
     db_path = os.path.join(DB_BASE_DIR, db_filename)
 
     if not os.path.exists(db_path):
-        print(f"Database file not found: {db_path}")
+        logging.error(f"Database file not found: {db_path}")
         abort(404, description=f"Database for chromosome '{chromosome_id}' not found.")
 
     try:
@@ -62,7 +69,7 @@ def get_db_connection(chromosome_id):
         conn.row_factory = sqlite3.Row  # Return rows as dictionary-like objects
         return conn, db_path
     except sqlite3.Error as e:
-        print(f"SQLite error connecting to {db_path}: {e}")
+        logging.error(f"SQLite error connecting to {db_path}: {e}")
         abort(500, description="Database connection error.")
 
 
@@ -96,16 +103,16 @@ def get_all_genes_for_chromosome():
                 }
             )
         conn.close()
-        print(f"Found {len(genes)} genes for {chromosome_id} in {db_path}")
+        logging.info(f"Found {len(genes)} genes for {chromosome_id} in {db_path}")
         return jsonify(genes)
 
     except sqlite3.Error as e:
-        print(f"SQLite error querying {db_path}: {e}")
+        logging.error(f"SQLite error querying {db_path}: {e}")
         if conn:
             conn.close()
         abort(500, description="Database query error.")
     except Exception as e:
-        print(f"An unexpected error occurred processing {db_path}: {e}")
+        logging.error(f"An unexpected error occurred processing {db_path}: {e}")
         if conn:
             conn.close()
         abort(500, description="Internal server error.")
@@ -142,22 +149,24 @@ def get_specific_gene(feature_id):
                 "strand": row["strand"],
                 "attributes": attributes,
             }
-            print(f"Found gene {feature_id} for {chromosome_id} in {db_path}")
+            logging.info(f"Found gene {feature_id} for {chromosome_id} in {db_path}")
             return jsonify(gene_data)
         else:
-            print(f"Gene {feature_id} not found for {chromosome_id} in {db_path}")
+            logging.warning(
+                f"Gene {feature_id} not found for {chromosome_id} in {db_path}"
+            )
             abort(
                 404,
                 description=f"Gene with ID '{feature_id}' not found for chromosome '{chromosome_id}'.",
             )
 
     except sqlite3.Error as e:
-        print(f"SQLite error querying {db_path} for {feature_id}: {e}")
+        logging.error(f"SQLite error querying {db_path} for {feature_id}: {e}")
         if conn:
             conn.close()
         abort(500, description="Database query error.")
     except Exception as e:
-        print(
+        logging.error(
             f"An unexpected error occurred processing {db_path} for {feature_id}: {e}"
         )
         if conn:
@@ -171,8 +180,9 @@ def get_most_probable_annotation():
     chromosome_id = request.args.get("chromosome")
     gene_name = request.args.get("gene_name")
     if not chromosome_id or not gene_name:
+        logging.warning("Missing 'chromosome' or 'gene_name' query parameter.")
         abort(400, description="Missing 'chromosome' or 'gene_name' query parameter.")
-    conn, db_path = get_db_connection(chromosome_id)
+    conn, db_path = get_db_connection("annotations")
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -182,18 +192,28 @@ def get_most_probable_annotation():
             ORDER BY CAST(PPV AS FLOAT) DESC
             LIMIT 1
             """,
-            (gene_name,)
+            (gene_name,),
         )
         row = cursor.fetchone()
         conn.close()
         if row:
+            logging.info(f"Annotation row: {row}")
+            logging.info(f"Annotation dict: {dict(row)}")
             return jsonify(dict(row))
         else:
-            abort(404, description=f"No annotation found for gene '{gene_name}' on chromosome '{chromosome_id}'.")
+            logging.warning(
+                f"No annotation found for gene '{gene_name}' on chromosome '{chromosome_id}'."
+            )
+            abort(
+                404,
+                description=f"No annotation found for gene '{gene_name}' on chromosome '{chromosome_id}'.",
+            )
     except Exception as e:
+        logging.error(f"Error retrieving annotation: {e}")
         if conn:
             conn.close()
         abort(500, description=f"Error retrieving annotation: {e}")
+
 
 @app.route("/api/v1/annotations/all", methods=["GET"])
 def get_all_annotations_for_gene():
@@ -211,7 +231,7 @@ def get_all_annotations_for_gene():
             WHERE Gene_name = ?
             ORDER BY CAST(PPV AS FLOAT) DESC
             """,
-            (gene_name,)
+            (gene_name,),
         )
         rows = cursor.fetchall()
         conn.close()
@@ -220,6 +240,7 @@ def get_all_annotations_for_gene():
         if conn:
             conn.close()
         abort(500, description=f"Error retrieving annotations: {e}")
+
 
 if __name__ == "__main__":
     # Runs the Flask development server

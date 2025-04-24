@@ -36,6 +36,60 @@ function numberWithCommas(x) {
 }
 
 function GenomeBrowser({ genes }) {
+  function MostProbableAnnotationDisplay({ gene, chromosome }) {
+    const [annotation, setAnnotation] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    const chromosomeName = chromosome.name;
+    const geneName = gene.id.replace(/^gene-/, '');
+
+    useEffect(() => {
+      if (!gene) {
+        setAnnotation(null);
+        setError(null);
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      fetch(`http://localhost:5001/api/v1/annotations/most_probable?chromosome=${encodeURIComponent(chromosomeName)}&gene_name=${encodeURIComponent(geneName)}`)
+        .then(res => {
+          console.log('Annotation response:', res);
+          if (!res.ok) throw new Error("No annotation found");
+          return res.json();
+        })
+        .then(data => {
+          console.log('Annotation data:', data);
+          setAnnotation(data);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error('Annotation fetch error:', err);
+          setAnnotation(null);
+          setError("No annotation found");
+          setLoading(false);
+        });
+    }, [gene, chromosome]);
+
+    if (!gene) return null;
+    return (
+      <div style={{ marginTop: 18, padding: '12px 16px', border: '1px solid #eee', borderRadius: 8, background: '#fafbfc' }}>
+        <b>Most Probable Annotation:</b><br />
+        {loading && <span style={{ color: '#888' }}>Loading...</span>}
+        {error && <span style={{ color: '#c00' }}>{error}</span>}
+        {annotation && (
+          <div style={{ marginTop: 6, fontSize: 15 }}>
+            <div><b>Type:</b> {annotation.type}</div>
+            <div><b>Confidence:</b> {Number(annotation.PPV).toFixed(3)}</div>
+            <div><b>Gene Ontology:</b> {annotation.id}</div>
+            <div><b>Description:</b> {annotation.desc}</div>
+            {/* Show more fields as needed */}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   realChromosome.genes = genes;
 
   const overviewRef = useRef();
@@ -893,7 +947,7 @@ function GenomeBrowser({ genes }) {
           <div style={{ fontWeight: 500, marginBottom: 8 }}>Tooltip for when we select an element (currently, only genes)</div>
           {(selectedGene || hoveredGene) ? (
             <div style={{ fontSize: 18, marginTop: 16, lineHeight: 1.7 }}>
-              <div><b>ID:</b> {(selectedGene || hoveredGene).id}</div>
+              <div><b>ID:</b> {(selectedGene || hoveredGene).id.replace(/^gene-/, '')}</div>
               <div><b>Start:</b> {numberWithCommas((selectedGene || hoveredGene).start)}</div>
               <div><b>End:</b> {numberWithCommas((selectedGene || hoveredGene).end)}</div>
               <div><b>Strand:</b> {(selectedGene || hoveredGene).strand}</div>
@@ -908,6 +962,11 @@ function GenomeBrowser({ genes }) {
                   (Gene is selected. Click elsewhere to deselect.)
                 </div>
               )}
+              {/* Most Probable Annotation Info */}
+              <MostProbableAnnotationDisplay
+                gene={selectedGene || hoveredGene}
+                chromosome={realChromosome}
+              />
             </div>
           ) : (
             <div style={{ color: '#888', marginTop: 16 }}>Hover over or click a gene to see its details here.</div>
