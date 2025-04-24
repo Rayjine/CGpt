@@ -1107,10 +1107,11 @@ function GenomeBrowser({ genes }) {
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', margin: 0, padding: 0, background: '#f0f4fa', display: 'flex', flexDirection: 'column' }}>
-      {/* Top section: Info bar + Genome browser, visually carded */}
+
+      {/* Main info bar + Genome browser, visually carded */}
       <div style={{
         width: 'calc(100% - 48px)',
-        height: '320px',
+        height: '260px',
         minHeight: 260,
         margin: '24px auto 12px auto',
         background: '#fff',
@@ -1145,7 +1146,7 @@ function GenomeBrowser({ genes }) {
           {/* --- GENE SEARCH BAR --- */}
           <form
             onSubmit={e => { e.preventDefault(); /* Placeholder for search logic */ }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 120 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '6px 12px', marginLeft: 18, minWidth: 280, maxWidth: 340 }}
             autoComplete="off"
           >
             <input
@@ -1158,7 +1159,7 @@ function GenomeBrowser({ genes }) {
                 border: '1px solid #ddd',
                 background: '#f8f8fa',
                 outline: 'none',
-                width: 100,
+                width: 380,
                 transition: 'border 0.2s',
                 marginRight: 2
               }}
@@ -1278,9 +1279,9 @@ function GenomeBrowser({ genes }) {
           </form>
         </div>
         {/* Genome SVGs */}
-        <div style={{ width: '100%', height: 'calc(100% - 64px)', background: '#fff', borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
-          <svg ref={overviewRef} style={{ display: 'block', width: '100%' }} />
-          <svg ref={detailRef} style={{ display: 'block', width: '100%' }} />
+        <div style={{ width: '100%', height: '60%', background: '#fff', borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
+          <svg ref={overviewRef} style={{ display: 'block', width: '100%', height: 80 }} />
+          <svg ref={detailRef} style={{ display: 'block', width: '100%', height: 100 }} />
         </div>
       </div>
       {/* Bottom section: Left Panel + Tooltip + Chatbot visually carded */}
