@@ -165,6 +165,62 @@ def get_specific_gene(feature_id):
         abort(500, description="Internal server error.")
 
 
+@app.route("/api/v1/annotations/most_probable", methods=["GET"])
+def get_most_probable_annotation():
+    """Return the annotation with the highest PPV for a given gene."""
+    chromosome_id = request.args.get("chromosome")
+    gene_name = request.args.get("gene_name")
+    if not chromosome_id or not gene_name:
+        abort(400, description="Missing 'chromosome' or 'gene_name' query parameter.")
+    conn, db_path = get_db_connection(chromosome_id)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT * FROM annotations
+            WHERE Gene_name = ?
+            ORDER BY CAST(PPV AS FLOAT) DESC
+            LIMIT 1
+            """,
+            (gene_name,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return jsonify(dict(row))
+        else:
+            abort(404, description=f"No annotation found for gene '{gene_name}' on chromosome '{chromosome_id}'.")
+    except Exception as e:
+        if conn:
+            conn.close()
+        abort(500, description=f"Error retrieving annotation: {e}")
+
+@app.route("/api/v1/annotations/all", methods=["GET"])
+def get_all_annotations_for_gene():
+    """Return all annotations for a gene, ordered by PPV descending."""
+    chromosome_id = request.args.get("chromosome")
+    gene_name = request.args.get("gene_name")
+    if not chromosome_id or not gene_name:
+        abort(400, description="Missing 'chromosome' or 'gene_name' query parameter.")
+    conn, db_path = get_db_connection(chromosome_id)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT * FROM annotations
+            WHERE Gene_name = ?
+            ORDER BY CAST(PPV AS FLOAT) DESC
+            """,
+            (gene_name,)
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return jsonify([dict(row) for row in rows])
+    except Exception as e:
+        if conn:
+            conn.close()
+        abort(500, description=f"Error retrieving annotations: {e}")
+
 if __name__ == "__main__":
     # Runs the Flask development server
     # Make sure the host is accessible if running React in a container/VM

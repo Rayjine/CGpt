@@ -14,6 +14,9 @@ uv run scripts/sequence.py \
     --fasta data/ncbi_dataset/ncbi_dataset/data/GCF_014441545.1/GCF_014441545.1_ROS_Cfam_1.0_genomic.fna \
     --chromosome NC_051805.1 \
     --output cgpt-visualizer-website/src/data/chromosome_data.json
+uv run scripts/create_annotation_db.py \
+    --annotations ../shared/gene-function/res/annotations_filtered.out \
+    --csv ../shared/gene-function/res/dog_genome_dict.csv
 
 
 # --- Start Backend ---
