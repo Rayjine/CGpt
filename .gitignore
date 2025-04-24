@@ -8,3 +8,6 @@ __pycache__/
 shared/gene-function/SANSPANZ.3/*.out
 shared/gene-function/SANSPANZ.3/*.html
 shared/gene-function/test_results/*
+ensembl-mcp/.venv
+
+**/.venv/*
