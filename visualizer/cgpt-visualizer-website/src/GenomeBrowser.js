@@ -14,13 +14,17 @@ const baseColors = {
   G: '#ff7f0e'  // orange
 };
 
-const realChromosome = {
+// Define AND EXPORT the data object using a NAMED export
+export const realChromosome = {
   name: chromosomeData.name,
   length: chromosomeData.length,
   genes: []
 };
 
 const realSequence = chromosomeData.sequence.toUpperCase().replace(/[^ACGT]/g, ''); // Ensure clean sequence
+
+window._realChromosome = realChromosome;
+window._realSequence = realSequence;
 
 // Assign color to gene by index (alternating from 10 colors)
 function getGeneColor(index) {
@@ -31,7 +35,7 @@ function numberWithCommas(x) {
   return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-function GenomeBrowser() {
+function GenomeBrowser({ genes }) {
   const overviewRef = useRef();
   const detailRef = useRef();
   const zoomRef = useRef();
