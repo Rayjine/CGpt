@@ -8,139 +8,128 @@ import os
 from tqdm import tqdm
 
 
-# def main():
-#     print("Hello from gene-function!")
 
-def select_chromosome(input_file, output_file, chr_id):
 
-    output = []
-    nb_detected_genes = 0
+def select_chromosome_chunks(input_file, output_dir, chr_id, chunk_size=800):
+    """
+    Splits genes from a specific chromosome in a FASTA file into smaller chunks and saves them as separate files.
+    Args:
+        input_file (str): Path to the input FASTA file containing gene sequences.
+        output_dir (str): Directory where the output chunk files will be saved.
+        chr_id (int): Chromosome ID to filter genes by.
+        chunk_size (int, optional): Number of genes per chunk file. Defaults to 1000.
+    Returns:
+        None
+    Side Effects:
+        - Creates the output directory if it does not exist.
+        - Writes chunked gene sequences to files in the specified output directory.
+        - Prints the total number of genes detected for the specified chromosome.
+    Notes:
+        - The function assumes the input FASTA file uses headers starting with ">" and that chromosome IDs
+          are formatted as "ROS_Cfam_1.0:<chr_id>:" in the header lines.
+        - Each chunk file is named using the format: `chunk<file_idx>_chr<chr_id>_<original_filename>`.
+    Example:
+        select_chromosome_chunks(
+            input_file="genes.fasta",
+            output_dir="output_chunks",
+            chr_id=5,
+            chunk_size=500
+        )
+    """
+
+    # ENSCAFP00845004867.1
+    os.makedirs(output_dir, exist_ok=True)
+
+    gene_count = 0
+    file_count = 0
+    chunk = []
+
+    def save_chunk(chunk_data, file_idx):
+        output_path = os.path.join(output_dir,\
+                                   f"chunk{file_idx}_chr{chr_id}_" + input_file.split("/")[-1])
+        with open(output_path, "w") as f:
+            for line in chunk_data:
+                f.write(line + "\n")
 
     with open(input_file, "r") as f:
         keep = False
         for line in tqdm(f):
-            if line.startswith(">") and f"ROS_Cfam_1.0:{int(chr_id)}:" in line:
+            if line.startswith(">") and not f"ROS_Cfam_1.0:{int(chr_id)}:" in line:
                 keep = False
             if line.startswith(">") and f"ROS_Cfam_1.0:{int(chr_id)}:" in line:
-                output.append(line.strip())
-                nb_detected_genes += 1
+                # New gene starts — flush to chunk if needed
+                if gene_count > 0 and gene_count % chunk_size == 0:
+                    save_chunk(chunk, file_count)
+                    file_count += 1
+                    chunk = []
+
                 keep = True
-            if keep and not line.startswith(">") :
-                output.append(line.strip())
-    print(f"{nb_detected_genes} genes detected in chromosome {chr_id}.")
-    with open(output_file, "w") as f:
-        for line in tqdm(output):
-            f.write(line + "\n")
+                gene_count += 1
+                chunk.append(line.strip())
+            elif keep and not line.startswith(">"):
+                chunk.append(line.strip())
 
-def filter_genes_annotations(input_file, output_file, threshold=0.6):
-    """
-    Filters gene annotations based on a given PPV threshold and formats the output.
-    This function reads a tab-separated input file containing gene annotations, filters
-    the data based on specific criteria, and writes the filtered and formatted data to
-    an output file.
-    Args:
-        input_file (str): Path to the input file containing gene annotations.
-        output_file (str): Path to the output file where filtered annotations will be saved.
-        threshold (float, optional): The minimum PPV (Positive Predictive Value) threshold 
-            for filtering annotations. Default is 0.6.
-    Input File Requirements:
-        - The input file must be a tab-separated file with the following columns:
-          - 'type': Indicates the type of annotation (e.g., 'original_DE', 'CC_ARGOT', etc.).
-          - 'desc': Contains metadata.
-          - 'qpid': Gene identifier.
-          - 'PPV': Positive Predictive Value for filtering.
-          - 'id': GO term identifier.
-    Output File Format:
-        - The output file will be a tab-separated file with the following columns:
-          - 'gene_id': Gene identifier (from 'qpid').
-          - 'type': Annotation type ('cellular_component', 'biological_process', or 'molecular_function').
-          - 'PPV': Positive Predictive Value.
-          - 'id': GO term identifier prefixed with 'GO:'.
-          - 'chromosome': Chromosome location of the gene.
-          - 'start': Start position of the gene.
-          - 'end': End position of the gene.
-    Processing Steps:
-        1. Reads the input file into a DataFrame.
-        2. Extracts gene location metadata for rows with 'type' equal to 'original_DE'.
-        3. Merges gene location metadata back into the main DataFrame.
-        4. Filters rows with 'type' in ['CC_ARGOT', 'BP_ARGOT', 'MF_ARGOT'] and maps them 
-           to human-readable annotation types.
-        5. Filters rows based on the PPV threshold.
-        6. Formats the 'id' column by prefixing it with 'GO:'.
-        7. Selects and renames columns for the final output.
-        8. Writes the filtered and formatted data to the output file.
-    Raises:
-        FileNotFoundError: If the input file does not exist.
-        ValueError: If required columns are missing in the input file.
-    Example:
-        filter_genes_annotations(
-            input_file="gene_annotations.out",
-            output_file="gene_annotations_filtered.tsv",
-            threshold=0.7
-        )
-    """
+    # Save remaining chunk
+    if chunk:
+        save_chunk(chunk, file_count)
+    print(f"{gene_count} genes detected in chromosome {chr_id}.")
 
+def filter_genes_annotations(chunk_files, output_file, threshold=0.6):
 
-    df = pd.read_csv(input_file, sep="\t")
-    print("Input file: ", input_file)
+    processed_files = []
+    for input_file in chunk_files:
+        df = pd.read_csv(input_file, sep="\t")
+        print("Input file: ", input_file)
 
-    # Extract gene location from file
-    df_metadata = df[df['type'] == 'original_DE']
-    df_metadata[['chromosome', 'start', 'end']] = (
-        df_metadata['desc']
-        .str.split(":", expand=True)
-        .iloc[:, 2:5])
+        # Extract gene location from file
+        df_metadata = df[df['type'] == 'original_DE']
+        df_metadata[['chromosome', 'start', 'end']] = (
+            df_metadata['desc']
+            .str.split(":", expand=True)
+            .iloc[:, 2:5])
 
-    # Add gene location to the main dataframe
-    df = df.merge(df_metadata[['qpid', 'chromosome', 'start', 'end']], on='qpid')
-    df = df[df['type'].isin(['CC_ARGOT', 'BP_ARGOT', 'MF_ARGOT'])]
-    df['type'] = df['type'].map({
-        'CC_ARGOT': 'cellular_component',
-        'BP_ARGOT': 'biological_process',
-        'MF_ARGOT': 'molecular_function',
-    })
-    df['PPV'] = df['PPV'].astype(float)
-    df = df[df['PPV'] >= threshold]
-    df['id'] = df['id'].apply(lambda x: 'GO:' + str(x))
+        # Add gene location to the main dataframe
+        df = df.merge(df_metadata[['qpid', 'chromosome', 'start', 'end']], on='qpid')
+        df = df[df['type'].isin(['CC_ARGOT', 'BP_ARGOT', 'MF_ARGOT'])]
+        df['type'] = df['type'].map({
+            'CC_ARGOT': 'cellular_component',
+            'BP_ARGOT': 'biological_process',
+            'MF_ARGOT': 'molecular_function',
+        })
+        df['PPV'] = df['PPV'].astype(float)
+        df = df[df['PPV'] >= threshold]
+        df['id'] = df['id'].apply(lambda x: 'GO:' + str(x))
 
-    # Final formatting
-    df = df[['qpid', 'type', 'PPV', 'id', 'chromosome', 'start', 'end', 'desc']].rename(columns={'qpid': 'gene_id'})
-    df.to_csv(output_file, sep="\t", index=False)
+        # Final formatting
+        processed_files.append(df[['qpid', 'type', 'PPV', 'id', 'chromosome', 'start', 'end', 'desc']].rename(columns={'qpid': 'gene_id'}))
+    pd.concat(processed_files).to_csv(output_file, sep="\t", index=False)
 
     
 
-def compute_genes_functions(input_file, output_dir, output_file, specie=None, **kwargs):
-    """
-    Executes a gene function computation pipeline using the SANSPANZ tool and filters the results.
-    Args:
-        input_file (str): Path to the input file containing gene data.
-        output_dir (str): Directory where the output files will be saved.
-        output_file (str): Name of the main output file (without extension).
-        specie (str, optional): Species identifier to be used in the analysis. Defaults to None.
-        **kwargs: Additional keyword arguments for future extensions.
-    Raises:
-        subprocess.CalledProcessError: If the SANSPANZ command fails during execution.
-    Side Effects:
-        - Runs the SANSPANZ tool to compute gene function.
-        - Generates output files in the specified output directory.
-        - Filters the generated annotations and saves the filtered results.
-    Note:
-        The function assumes that the SANSPANZ tool is available and properly configured in the environment.
-    """
+def compute_genes_functions(input_files, output_dir, output_file, specie=None, **kwargs):
 
     os.makedirs(output_dir, exist_ok=True)
+    chunks_files = []
 
-    command = [
-        "python", "SANSPANZ.3/runsanspanz.py",
-        "-R",
-        "-o", f'",{output_dir}/DE.out,{output_dir}/GO.out,{output_dir}/{output_file}.out"',
-        f'-s "{specie}"' if specie else "",
-        "<", input_file
-    ]
+    for file in tqdm(input_files):
+        file_id = file.split("/")[-1].split("_")[0]
+        command = [
+            "python", "SANSPANZ.3/runsanspanz.py",
+            "-R",
+            "-o", f'",,,{output_dir}/{file_id}_{output_file}.out"',
+            f'-s "{specie}"' if specie else "",
+            "<", file
+        ]
 
-    subprocess.run(" ".join(command), shell=True, check=True)
+        try : 
+            subprocess.run(" ".join(command), shell=True, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error processing file {file}: {e}")
+            return 
+        chunks_files.append(f"{output_dir}/{file_id}_{output_file}.out")
 
-    filter_genes_annotations(f"{output_dir}/{output_file}.out", f"{output_dir}/{output_file}_filtered.out")
+    filter_genes_annotations(chunks_files,\
+                            f"{output_dir}/{output_file}_filtered.out")
 
 
 
@@ -170,17 +159,17 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    filtered_file = args.output_dir + "/chr_" + str(1) + "_" + args.input_file.split("/")[-1]
     
     if args.verbose :
         print("Parsing pept fasta file")
-    select_chromosome(args.input_file, filtered_file, 1)
+    chunks_paths = os.path.join(args.output_dir, "chunks")
+    select_chromosome_chunks(args.input_file, chunks_paths, 1, chunk_size=800)
+
     if args.verbose :
         print("Computing gene functions")
-    #compute_genes_functions(filtered_file, args.output_dir, args.output_file, args.specie)
-    if args.verbose :
-        print("Filter gene annotations")
-    #filter_genes_annotations(f"{args.output_dir}/{args.output_file}.out", f"{args.output_dir}/{args.output_file}_filtered.csv", threshold=0.6)
+    all_entries = os.listdir(chunks_paths)
+    files = [os.path.join(chunks_paths,f) for f in all_entries if os.path.isfile(os.path.join(chunks_paths, f))]
+    compute_genes_functions(files, args.output_dir, args.output_file, args.specie)
 
 
 
