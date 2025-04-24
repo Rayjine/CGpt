@@ -10,7 +10,7 @@ import numpy as np
 from unipressed import IdMappingClient
 import time
 
-def gene_dict(dna_file,gff_file,protein_file=None):
+def gene_dict(dna_file,gff_file,protein_file=None, Uniport = False):
     genome_dict = {'Gene_name':[],
                    'Ensemble_id':[],
                    "Protein_ensembl_id":[],
@@ -45,7 +45,7 @@ def gene_dict(dna_file,gff_file,protein_file=None):
                     if gene_name:  # only store if gene name exists
                         genome_dict['Gene_name'].append(gene_name)
                         genome_dict['Ensemble_id'].append(gene_id)
-                        genome_dict['Locus'].append(f'{chrom}:{start}:{end}:{strand}')
+                        genome_dict['Locus'].append([f'{chrom}:{start}:{end}:{strand}'])
                         
     if protein_file:
         protein_ensembl_ids = [" "] * len(genome_dict['Ensemble_id'])
@@ -59,19 +59,21 @@ def gene_dict(dna_file,gff_file,protein_file=None):
                 
         genome_dict['Protein_ensembl_id'] = protein_ensembl_ids
         
-    Uniprot_ids = [" "] * len(genome_dict['Gene_name'])
-    for gene in genome_dict['Gene_name']:
-        request = IdMappingClient.submit(
-        source="GeneCards", dest="UniProtKB", ids=[gene]
-        )
-        time.sleep(1.0)
-        result = pd.DataFrame(list(request.each_result()))
+    if Uniport: # Not recommended to use this option, very slow
+        Uniprot_ids = [" "] * len(genome_dict['Gene_name'])
+        for gene in genome_dict['Gene_name']:
+            request = IdMappingClient.submit(
+            source="GeneCards", dest="UniProtKB", ids=[gene]
+            )
+            time.sleep(0.5)
+            result = pd.DataFrame(list(request.each_result()))
         
-        idx = genome_dict['Gene_name'].index(gene)
-        if not result.empty:
-            Uniprot_ids[idx] = result['to'][0]
-        else:
-            Uniprot_ids[idx] = "Not Found"
-    genome_dict['Uniprot_id'] = Uniprot_ids
+            idx = genome_dict['Gene_name'].index(gene)
+            if not result.empty:
+                Uniprot_ids[idx] = result['to'][0]
+            else:
+                Uniprot_ids[idx] = "Not Found"
+        genome_dict['Uniprot_id'] = Uniprot_ids
                         
     return pd.DataFrame(genome_dict)
+
