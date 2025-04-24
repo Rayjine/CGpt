@@ -3,11 +3,34 @@ from typing import List
 import subprocess
 from argparse import ArgumentParser
 import pandas as pd
+import os
 
+from tqdm import tqdm
 
 
 # def main():
 #     print("Hello from gene-function!")
+
+def select_chromosome(input_file, output_file, chr_id):
+
+    output = []
+    nb_detected_genes = 0
+
+    with open(input_file, "r") as f:
+        keep = False
+        for line in tqdm(f):
+            if line.startswith(">") and f"ROS_Cfam_1.0:{int(chr_id)}:" in line:
+                keep = False
+            if line.startswith(">") and f"ROS_Cfam_1.0:{int(chr_id)}:" in line:
+                output.append(line.strip())
+                nb_detected_genes += 1
+                keep = True
+            if keep and not line.startswith(">") :
+                output.append(line.strip())
+    print(f"{nb_detected_genes} genes detected in chromosome {chr_id}.")
+    with open(output_file, "w") as f:
+        for line in tqdm(output):
+            f.write(line + "\n")
 
 def filter_genes_annotations(input_file, output_file, threshold=0.6):
     """
@@ -86,9 +109,9 @@ def filter_genes_annotations(input_file, output_file, threshold=0.6):
 
     
 
-def compute_genes_annotations(input_file, output_dir, output_file, specie=None, **kwargs):
+def compute_genes_functions(input_file, output_dir, output_file, specie=None, **kwargs):
     """
-    Executes a gene annotation computation pipeline using the SANSPANZ tool and filters the results.
+    Executes a gene function computation pipeline using the SANSPANZ tool and filters the results.
     Args:
         input_file (str): Path to the input file containing gene data.
         output_dir (str): Directory where the output files will be saved.
@@ -98,13 +121,14 @@ def compute_genes_annotations(input_file, output_dir, output_file, specie=None, 
     Raises:
         subprocess.CalledProcessError: If the SANSPANZ command fails during execution.
     Side Effects:
-        - Runs the SANSPANZ tool to compute gene annotations.
+        - Runs the SANSPANZ tool to compute gene function.
         - Generates output files in the specified output directory.
         - Filters the generated annotations and saves the filtered results.
     Note:
         The function assumes that the SANSPANZ tool is available and properly configured in the environment.
     """
 
+    os.makedirs(output_dir, exist_ok=True)
 
     command = [
         "python", "SANSPANZ.3/runsanspanz.py",
@@ -139,7 +163,24 @@ if __name__ == "__main__":
         "-s", "--specie", type=str, default=None,
         help="Specie for gene function prediction"
     )
+
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", default=False,
+        help="Verbose mode"
+    )
     args = parser.parse_args()
 
+    filtered_file = args.output_dir + "/chr_" + str(1) + "_" + args.input_file.split("/")[-1]
+    
+    if args.verbose :
+        print("Parsing pept fasta file")
+    select_chromosome(args.input_file, filtered_file, 1)
+    if args.verbose :
+        print("Computing gene functions")
+    #compute_genes_functions(filtered_file, args.output_dir, args.output_file, args.specie)
+    if args.verbose :
+        print("Filter gene annotations")
+    #filter_genes_annotations(f"{args.output_dir}/{args.output_file}.out", f"{args.output_dir}/{args.output_file}_filtered.csv", threshold=0.6)
 
-    compute_genes_annotations(args.input_file, args.output_dir, args.output_file, args.specie)
+
+
