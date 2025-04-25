@@ -1583,50 +1583,7 @@ function GenomeBrowser({ genes }) {
         {/* Chatbot area (right) */}
         <div style={{ width: '33.3%', minWidth: 250, height: '100%', background: '#fff', borderRadius: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box', padding: '28px 30px', display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 22, letterSpacing: 0.5 }}>ChatBot</div>
-          {/* Chat messages area */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* Placeholder for messages */}
-            <div style={{ alignSelf: 'flex-start', background: '#f0f6ff', borderRadius: 8, padding: '12px 18px', fontSize: 16, color: '#222', maxWidth: '80%' }}>
-              Hello! I can help answer questions about the genome you're viewing.
-            </div>
-            <div style={{ color: '#aaa', fontSize: 14, fontStyle: 'italic', alignSelf: 'center', margin: '10px 0' }}>
-              Messages will appear here.
-            </div>
-          </div>
-          {/* Input area */}
-          <form style={{ display: 'flex', gap: 8, marginTop: 12 }} onSubmit={e => e.preventDefault()}>
-            <input
-              type="text"
-              placeholder="Type a message..."
-              style={{
-                flex: 1,
-                padding: '12px 16px',
-                borderRadius: 20,
-                border: '1px solid #ddd',
-                fontSize: 16,
-                background: '#f8f8fa',
-                outline: 'none'
-              }}
-            />
-            <button
-              type="submit"
-              style={{
-                background: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '50%',
-                width: 40,
-                height: 40,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 20,
-                cursor: 'not-allowed',
-                opacity: 0.7
-              }}
-              disabled
-            >→</button>
-          </form>
+          <ChatbotWidget />
         </div>
       </div>
     </div>
