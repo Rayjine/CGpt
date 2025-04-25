@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 load_dotenv(
     dotenv_path=os.path.join(os.path.dirname(__file__), "ensembl_mcp_server", ".env")
 )
-print("ANTHROPIC_API_KEY in backend:", os.getenv("ANTHROPIC_API_KEY"))
 
 from client.ensembl_client import EnsemblClient
 

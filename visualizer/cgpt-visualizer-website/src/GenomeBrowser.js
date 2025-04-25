@@ -1347,7 +1347,7 @@ function GenomeBrowser({ genes }) {
           <span style={{ fontSize: 14 }}>Length: <b>{numberWithCommas(realChromosome.length)} bp</b></span>
           <span style={{ fontSize: 14 }}>Genes: <b>{geneCount}</b></span>
           {/* --- GENE SEARCH BAR WITH AUTOCOMPLETE --- */}
-          <div style={{ position: 'relative', width: '100%' }}>
+          <div style={{ position: 'relative', width: '400px' }}>
             <form
               onSubmit={handleKeywordSearch}
               style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '6px 12px', marginLeft: 18, minWidth: 280, maxWidth: 340 }}
