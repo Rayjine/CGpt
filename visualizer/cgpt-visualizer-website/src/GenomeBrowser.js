@@ -187,6 +187,7 @@ function GenomeBrowser({ genes }) {
           <div><b>Strand:</b> {gene.strand}</div>
           <div><b>GenBank key:</b> {gene.attributes['gbkey']}</div>
           <div><b>Gene Biotype:</b> {gene.attributes['gene_biotype']}</div>
+          <MostProbableAnnotationDisplay gene={gene} chromosome={realChromosome} />
         </div>
         <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
           ({selectedGenes.length} gene{selectedGenes.length > 1 ? 's are' : ' is'} selected. Click elsewhere to deselect.)
@@ -1573,6 +1574,7 @@ function GenomeBrowser({ genes }) {
               <div><b>Strand:</b> {hoveredGene.strand}</div>
               <div><b>GenBank key:</b> {hoveredGene.attributes['gbkey']}</div>
               <div><b>Gene Biotype:</b> {hoveredGene.attributes['gene_biotype']}</div>
+              <MostProbableAnnotationDisplay gene={hoveredGene} chromosome={realChromosome} />
             </div>
           ) : selectedGenes && selectedGenes.length > 0 ? (
             <GeneInfoDropdownPanel selectedGenes={selectedGenes} />
